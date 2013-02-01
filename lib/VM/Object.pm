@@ -1,6 +1,6 @@
 use MooseX::Declare;
 
-class Object_ {
+class VM::Object_ {
     for (
         qw/is_nil is_false is_function is_clousre is_string is_number is_table/)
     {

@@ -1,6 +1,6 @@
 use MooseX::Declare;
 
-class OpCode {
+class VM::OpCode {
     use MooseX::ClassAttribute;
     my @opcode_name = (
         #name                    args       describtion
