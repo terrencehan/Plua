@@ -1,6 +1,12 @@
+# lib/VM/Object.pm
+# Copyright (c) 2013 terrencehan
+# hanliang1990@gmail.com
+
 use MooseX::Declare;
 
-class VM::Object_ {
+class VM::Object {
+    use VM::Type;
+
     for (
         qw/is_nil is_false is_function is_clousre is_string is_number is_table/)
     {
@@ -10,4 +16,13 @@ class VM::Object_ {
             default => 0,
         );
     }
+
+    has 'type' => (
+        is      => 'rw',
+        isa     => 'VM::Type',
+        default => sub { VM::Type->LUA_TNONE }
+    );
+
+    method to_string { }
+    method to_num { }
 }
