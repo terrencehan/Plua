@@ -70,7 +70,7 @@ class VM::Instruction {
         $r & ~$BITRK;
     }
 
-    sub MYK {    #TODO
+    sub MYK {   
         if ( $_[0] eq "VM::Instruction" ) {
             shift;
         }
