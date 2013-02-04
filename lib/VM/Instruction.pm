@@ -116,40 +116,35 @@ class VM::Instruction {
         $self;
     }
 
-    method GETARG_A {
+    method GETARG_A  { $self->GETARG( $POS_A,  $SIZE_A ); }
+    method GETARG_B  { $self->GETARG( $POS_B,  $SIZE_B ); }
+    method GETARG_C  { $self->GETARG( $POS_C,  $SIZE_C ); }
+    method GETARG_Bx { $self->GETARG( $POS_Bx, $SIZE_Bx ); }
+    method GETARG_Ax { $self->GETARG( $POS_Ax, $SIZE_Ax ); }
+    method GETARG_sBx { $self->GETARG_Bx - $MAXfARG_sBx; }
+
+    method SETARG_A (Int $value){
+        $self->SETARG($value, $POS_A, $SIZE_A);
     }
 
-    method GETARG_B {
+    method SETARG_B (Int $value){
+        $self->SETARG($value, $POS_B, $SIZE_B);
     }
 
-    method GETARG_C {
+    method SETARG_C (Int $value){
+        $self->SETARG($value, $POS_C, $SIZE_C);
     }
 
-    method GETARG_Bx {
+    method SETARG_Bx (Int $value){
+        $self->SETARG($value, $POS_Bx, $SIZE_Bx);
     }
 
-    method GETARG_Ax {
+    method SETARG_Ax (Int $value){
+        $self->SETARG($value, $POS_Ax, $SIZE_Ax);
     }
 
-    method GETARG_sBx {
-    }
-
-    method SETARG_A {
-    }
-
-    method SETARG_B {
-    }
-
-    method SETARG_C {
-    }
-
-    method SETARG_Bx {
-    }
-
-    method SETARG_Ax {
-    }
-
-    method SETARG_sBx {
+    method SETARG_sBx (Int $value){
+        $self->SET_Bx($value+$MAXfARG_sBx);
     }
 
     sub CreateABC {
