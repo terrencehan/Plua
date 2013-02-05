@@ -1,4 +1,4 @@
-# lib/Coder/Instruction.pm
+# lib/VM/Instruction.pm
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
@@ -21,7 +21,7 @@ class VM::Instruction {
     our $SIZE_B  = 9;
     our $SIZE_Bx = ( $SIZE_C + $SIZE_B );
     our $SIZE_A  = 8;
-    our $SIZE_Ax = ( $SIZE_C + $SIZE_B + $SIZE_A );
+    #our $SIZE_Ax = ( $SIZE_C + $SIZE_B + $SIZE_A );
     our $SIZE_OP = 6;
 
     our $POS_OP = 0;
@@ -29,11 +29,11 @@ class VM::Instruction {
     our $POS_C  = ( $POS_A + $SIZE_A );
     our $POS_B  = ( $POS_C + $SIZE_C );
     our $POS_Bx = $POS_C;
-    our $POS_Ax = $POS_A;
+    #our $POS_Ax = $POS_A;
 
     our $MAXARG_Bx   = ( ( 1 << $SIZE_Bx ) - 1 );
     our $MAXfARG_sBx = ( $MAXARG_Bx >> 1 );
-    our $MAXARG_Ax   = ( ( 1 << $SIZE_Ax ) - 1 );
+    #our $MAXARG_Ax   = ( ( 1 << $SIZE_Ax ) - 1 );
     our $MAXARG_A    = ( ( 1 << $SIZE_A ) - 1 );
     our $MAXARG_B    = ( ( 1 << $SIZE_B ) - 1 );
     our $MAXARG_C    = ( ( 1 << $SIZE_C ) - 1 );
@@ -120,7 +120,7 @@ class VM::Instruction {
     method GETARG_B  { $self->GETARG( $POS_B,  $SIZE_B ); }
     method GETARG_C  { $self->GETARG( $POS_C,  $SIZE_C ); }
     method GETARG_Bx { $self->GETARG( $POS_Bx, $SIZE_Bx ); }
-    method GETARG_Ax { $self->GETARG( $POS_Ax, $SIZE_Ax ); }
+    #method GETARG_Ax { $self->GETARG( $POS_Ax, $SIZE_Ax ); }
     method GETARG_sBx { $self->GETARG_Bx - $MAXfARG_sBx; }
 
     method SETARG_A (Int $value){
@@ -139,31 +139,33 @@ class VM::Instruction {
         $self->SETARG($value, $POS_Bx, $SIZE_Bx);
     }
 
-    method SETARG_Ax (Int $value){
-        $self->SETARG($value, $POS_Ax, $SIZE_Ax);
-    }
+    #method SETARG_Ax (Int $value){
+        #$self->SETARG($value, $POS_Ax, $SIZE_Ax);
+    #}
 
     method SETARG_sBx (Int $value){
         $self->SET_Bx($value+$MAXfARG_sBx);
     }
 
     sub CreateABC {
+        shift;
         my ( $op, $a, $b, $c ) = @_;
-        VM::Instruction->new(
+        VM::Instruction->new(value=>
             ( $op << $POS_OP ) | ( $a << $POS_A ) | ( $b << $POS_B ) |
               ( $c << $POS_C ) );
     }
 
     sub CreateABx {
+        shift;
         my ( $op, $a, $bc ) = @_;
-        VM::Instruction->new(
+        VM::Instruction->new(value=>
             ( $op << $POS_OP ) | ( $a << $POS_A ) | ( $bc << $POS_Bx ) );
     }
 
-    sub CreateAx {
-        my ( $op, $a ) = @_;
-        VM::Instruction->new( ( $op << $POS_OP ) | ( $a << $POS_Ax ) );
-    }
+    #sub CreateAx {
+        #my ( $op, $a ) = @_;
+        #VM::Instruction->new( ( $op << $POS_OP ) | ( $a << $POS_Ax ) );
+    #}
 }
 
 1;
