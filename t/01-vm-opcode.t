@@ -1,4 +1,4 @@
-# t/OpCode.pm
+# t/01-vm-opcode.t
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
