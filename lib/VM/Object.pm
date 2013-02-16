@@ -19,10 +19,13 @@ class VM::Object {
 
     has 'type' => (
         is      => 'rw',
-        isa     => 'VM::Type',
+        isa     => 'Int',
         default => sub { VM::Type->LUA_TNONE }
     );
 
-    method to_string { }
-    method to_num { }
+    method to_string  { }
+    method to_literal { $self->to_string }
+    method to_num     { return 0.0 }
 }
+
+1;
