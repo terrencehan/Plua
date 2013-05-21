@@ -13,7 +13,7 @@ class Node {
     );
     has [qw/prev next/] => (
         is  => 'rw',
-        isa => 'Node',
+        isa => 'Node | Undef',
     );
 }
 
@@ -28,7 +28,7 @@ class VM::Object::Table extends VM::Object {
 
     has dict_part => (
         is      => 'rw',
-        isa     => 'HashRef[VM::Object]',
+        isa     => 'HashRef[VM::Object] | Undef',
         default => sub { {} },
     );
 
@@ -44,7 +44,7 @@ class VM::Object::Table extends VM::Object {
         #default => sub { VM::Object::Table->new }, #TODO
     );
 
-    has flags => (    # no tag method flags
+    has flags => (    # no tag method flags, metamethod
         is      => 'rw',
         isa     => 'Int',
         default => ~0,
@@ -122,7 +122,7 @@ class VM::Object::Table extends VM::Object {
             $self->_set( $key, $val );
         }
 
-        $self->flags = 0;
+        $self->flags(0);
     }
 
     method get (VM::Object $key) {
@@ -142,7 +142,7 @@ class VM::Object::Table extends VM::Object {
     }
 
     method get_str (Str $key) {
-        $self->get( VM::Object::String( value => $key ) );
+        $self->get( VM::Object::String->new( value => $key ) );
     }
 }
 

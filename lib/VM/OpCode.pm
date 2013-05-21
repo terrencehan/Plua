@@ -14,10 +14,10 @@ class VM::OpCode {
         'OP_LOADNIL',       #    A B        R(A), R(A+1), ..., R(A+B) := nil
         'OP_GETUPVAL',      #    A B        R(A) := UpValue[B]
 
-        'OP_GETGLOBAL',     #    A Bx       R(A) := Gbl[Kst(Bx)]                
+        'OP_GETGLOBAL',     #    A Bx       R(A) := Gbl[Kst(Bx)]
         'OP_GETTABLE',      #    A B C      R(A) := R(B)[RK(C)]
 
-        'OP_SETGLOBAL',     #    A Bx       Gbl[Kst(Bx)] := R(A)            
+        'OP_SETGLOBAL',     #    A Bx       Gbl[Kst(Bx)] := R(A)
 
         'OP_SETUPVAL',      #    A B        UpValue[B] := R(A)
         'OP_SETTABLE',      #    A B C      R(A)[RK(B)] := RK(C)
@@ -65,11 +65,11 @@ class VM::OpCode {
 
     );
     my $count = 0;
-    for(@opcode_name){
+    for (@opcode_name) {
         class_has $_ => (
-            is      => 'ro', 
-            isa     => 'Num', 
-            default =>$count++, 
+            is      => 'ro',
+            isa     => 'Num',
+            default => $count++,
         );
     }
 }

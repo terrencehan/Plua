@@ -38,6 +38,7 @@ class VM::Object::Number extends VM::Object {
     use overload '-'  => \&sub;
     use overload '*'  => \&mul;
     use overload '/'  => \&div;
+    use overload '""' => \&str;
 
     sub myeq {
         my ( $one, $two ) = @_;
@@ -74,6 +75,10 @@ class VM::Object::Number extends VM::Object {
     sub div {
         my ( $one, $two ) = @_;
         VM::Object::Number->new( value => ( $one->value / $two->value ) );
+    }
+    sub str {
+        my $self = shift;
+        return $self->to_num . "";
     }
     1;
 }

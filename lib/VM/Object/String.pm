@@ -31,6 +31,7 @@ class VM::Object::String extends VM::Object {
     package VM::Object::String;
     use overload '==' => \&myeq;
     use overload '!=' => \&myneq;
+    use overload '""' => \&str;
 
     sub myeq {
         my ( $one, $two ) = @_;
@@ -45,6 +46,11 @@ class VM::Object::String extends VM::Object {
     sub myneq {
         my ( $one, $two ) = @_;
         return not( $one == $two );
+    }
+
+    sub str {
+        my $self = shift;
+        return $self->value;
     }
 
     1;

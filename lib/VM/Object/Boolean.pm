@@ -17,7 +17,7 @@ class VM::Object::Boolean extends VM::Object {
         trigger => sub {
             my ($self, $new, $old) = @_;
             $self->is_false( not $new );
-        }, 
+        },
     );
 
 
