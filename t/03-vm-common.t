@@ -7,7 +7,7 @@ use warnings;
 
 use lib '../lib';
 
-use Test::More tests => 15;
+use Test::More;
 
 use_ok 'VM::Common::LuaType';
 use aliased 'VM::Common::LuaType';
@@ -26,3 +26,14 @@ is LuaType->NUMTAGS,            9;
 is LuaType->LUA_TPROTO,         10;
 is LuaType->LUA_TUPVAL,         11;
 is LuaType->LUA_TDEADKEY,       12;
+
+use aliased 'VM::Common::LuaOp';
+is LuaOp->LUA_OPADD, 0;
+is LuaOp->LUA_OPSUB, 1;
+is LuaOp->LUA_OPMUL, 2;
+is LuaOp->LUA_OPDIV, 3;
+is LuaOp->LUA_OPMOD, 4;
+is LuaOp->LUA_OPPOW, 5;
+is LuaOp->LUA_OPUNM, 6;
+
+done_testing;
