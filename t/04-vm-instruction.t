@@ -8,8 +8,7 @@ use strict;
 
 use lib '../lib';
 
-#use Test::More tests => 15;
-use Test::More 'no_plan';
+use Test::More;
 
 use_ok 'VM::Instruction';
 
@@ -76,3 +75,4 @@ $i->SETARG_C(0b101000001);
 is $i->GETARG_C,  0b101000001;
 $i->SETARG_Bx(0b000100101_101000001);
 is $i->GETARG_Bx, 0b000100101_101000001;
+done_testing;

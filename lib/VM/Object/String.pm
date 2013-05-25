@@ -7,7 +7,7 @@ use MooseX::Declare;
 class VM::Object::String extends VM::Object {
 
     #-BUILD (value => Str)
-    use VM::Type;
+    use VM::Common::LuaType;
 
     use lib '../../';
     has value => (
@@ -18,7 +18,7 @@ class VM::Object::String extends VM::Object {
 
     method BUILD {
         $self->is_string(1);
-        $self->type( VM::Type->LUA_TSTRING );
+        $self->type( VM::Common::LuaType->LUA_TSTRING );
     }
 
     override to_string {

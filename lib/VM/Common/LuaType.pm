@@ -1,10 +1,10 @@
-# lib/VM/Type.pm
+# lib/VM/Common/LuaType.pm
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
 use MooseX::Declare;
 
-class VM::Type {
+class VM::Common::LuaType {
     use MooseX::ClassAttribute;
 
     my $count = -1;

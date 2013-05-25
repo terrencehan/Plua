@@ -14,7 +14,7 @@ class VM::Object::Proto extends VM::Object {
         isa     => 'ArrayRef[VM::Instruction]',
         default => sub { [] },
     );
-    has k => (
+    has k => (    #constants used by the function
         is      => 'rw',
         isa     => 'ArrayRef[VM::Object]',
         default => sub { [] },
@@ -55,12 +55,12 @@ class VM::Object::Proto extends VM::Object {
     );
 
     method BUILD {
-        $self->type( VM::Type->LUA_TPROTO );
+        $self->type( VM::Common::LuaType->LUA_TPROTO );
     }
 
-    method getfuncline (Int $pc) {
+    method getfuncline( Int $pc) {
         return $pc < scalar $self->lineinfo ? $self->lineinfo->[$pc] : 0;
-    }
+    };
 }
 
 1;

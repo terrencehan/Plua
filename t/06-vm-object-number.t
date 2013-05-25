@@ -7,7 +7,7 @@ use warnings;
 
 use lib '../lib';
 use Test::More tests => 16;
-use VM::Type;
+use aliased 'VM::Common::LuaType';
 BEGIN { use_ok('VM::Object::Number') }
 
 my $num1 = VM::Object::Number->new( value => 2 );
@@ -31,5 +31,5 @@ is( ( $num1 * $num2 )->to_num, 6 );
 is( ( $num1 - $num2 )->to_num, -1 );
 is( ( $num1 / $num2 )->to_num, 2 / 3 );
 
-is $num1->type,      VM::Type->LUA_TNUMBER;
+is $num1->type,      LuaType->LUA_TNUMBER;
 is $num1->is_number, 1;

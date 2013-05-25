@@ -7,7 +7,7 @@ use warnings;
 
 use lib '../lib';
 use Test::More tests => 5;
-use VM::Type;
+use aliased 'VM::Common::LuaType';
 BEGIN { use_ok('VM::Object::Nil') }
 
 my $nil = VM::Object::Nil->new;
@@ -16,4 +16,4 @@ isa_ok $nil, 'VM::Object::Nil';
 
 is $nil->is_nil, 1;
 is $nil->is_false, 1;
-is $nil->type, VM::Type->LUA_TNIL;
+is $nil->type, LuaType->LUA_TNIL;

@@ -5,7 +5,7 @@
 use MooseX::Declare;
 
 class VM::Object {
-    use VM::Type;
+    use VM::Common::LuaType;
 
     for (
         qw/
@@ -29,7 +29,7 @@ class VM::Object {
     has 'type' => (
         is      => 'rw',
         isa     => 'Int',
-        default => sub { VM::Type->LUA_TNONE }
+        default => sub { VM::Common::LuaType->LUA_TNONE }
     );
 
     method to_string  { }

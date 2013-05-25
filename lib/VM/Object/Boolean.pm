@@ -8,7 +8,7 @@ class VM::Object::Boolean extends VM::Object {
 
     #--BUILD(value => bool)
     use lib '../../';
-    use VM::Type;
+    use VM::Common::LuaType;
 
     has value => (
         is       => 'rw',
@@ -22,7 +22,7 @@ class VM::Object::Boolean extends VM::Object {
 
 
     method BUILD ($args) {
-        $self->type( VM::Type->LUA_TBOOLEAN );
+        $self->type( VM::Common::LuaType->LUA_TBOOLEAN );
     }
 }
 

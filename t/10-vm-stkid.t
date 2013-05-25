@@ -9,7 +9,7 @@ use lib '../lib';
 
 #use Test::More tests => 5;
 use Test::More;
-use VM::Type;
+use VM::Common::LuaType;
 use VM::Object::Number;
 BEGIN { use_ok('VM::StkId') }
 

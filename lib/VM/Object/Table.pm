@@ -21,7 +21,7 @@ class VM::Object::Table extends VM::Object {
 
     #-BUILD (array_size => Int, dict_size => Int)
     use lib '../../';
-    use VM::Type;
+    use VM::Common::LuaType;
     use VM::Object;
     use VM::Object::Number;
     use VM::Object::String;
@@ -69,7 +69,7 @@ class VM::Object::Table extends VM::Object {
     method BUILD ($args) {
         my $array_size = $args->{array_size} or 0;
         my $dict_size  = $args->{dict_size}  or 0;
-        $self->type( VM::Type->LUA_TTABLE );
+        $self->type( VM::Common::LuaType->LUA_TTABLE );
         $self->is_table(1);
 
         #TODO

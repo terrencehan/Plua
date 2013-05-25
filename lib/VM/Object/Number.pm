@@ -8,7 +8,7 @@ class VM::Object::Number extends VM::Object {
 
     #-BUILD (value => Num)
     use lib '../../';
-    use VM::Type;
+    use VM::Common::LuaType;
 
     has value => (
         is       => 'rw',
@@ -18,7 +18,7 @@ class VM::Object::Number extends VM::Object {
 
     method BUILD {
         $self->is_number(1);
-        $self->type( VM::Type->LUA_TNUMBER );
+        $self->type( VM::Common::LuaType->LUA_TNUMBER );
     }
 
     override to_string {
@@ -76,6 +76,7 @@ class VM::Object::Number extends VM::Object {
         my ( $one, $two ) = @_;
         VM::Object::Number->new( value => ( $one->value / $two->value ) );
     }
+
     sub str {
         my $self = shift;
         return $self->to_num . "";
