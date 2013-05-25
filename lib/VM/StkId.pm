@@ -6,7 +6,7 @@ use MooseX::Declare;
 
 class VM::StkId {
 
-    #-BUILD (list=> ArrayRef[VM::Object], index => Int)
+    #-BUILD (list => ArrayRef[VM::Object], index => Int | object => LuaObject | stkid => VM::StkId)
 
     use lib '../';
     use VM::Object;
