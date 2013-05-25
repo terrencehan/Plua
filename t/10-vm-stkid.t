@@ -50,15 +50,15 @@ $stkid = $stkid - 3;
 is $stkid->index, 0, '- ok';
 
 is $stkid->value->value,     0, 'method:value';
-is $stkid->value_inc->value, 0, 'method:value';
+is $stkid->value_inc->value, 0, 'method:value_inc';
 is $stkid->value->value,     1, 'method:value';
-is $stkid->value_inc->value, 1, 'method:value';
+is $stkid->value_inc->value, 1, 'method:value_inc';
 is $stkid->value->value,     2, 'method:value';
-is $stkid->value_inc->value, 2, 'method:value';
-is $stkid->value_inc->value, 3, 'method:value';
+is $stkid->value_inc->value, 2, 'method:value_inc';
+is $stkid->value_inc->value, 3, 'method:value_inc';
 is $stkid->index, 4, 'index ok';
 is scalar @{ $stkid->list }, 4, 'list size is 4';
-is $stkid->value_inc->is_nil, 1, 'method:value';
+is $stkid->value_inc->is_nil, 1, 'method:value_inc';
 is scalar @{ $stkid->list }, 5, 'list size is 5';
 
 done_testing;
