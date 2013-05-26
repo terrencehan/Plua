@@ -16,6 +16,7 @@ class VM::Object {
         is_string
         is_number
         is_table
+        is_thread
         /
       )
     {
