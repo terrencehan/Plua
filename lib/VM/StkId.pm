@@ -6,7 +6,7 @@ use MooseX::Declare;
 
 class VM::StkId {
 
-    #-BUILD (list => ArrayRef[VM::Object], index => Int | object => LuaObject | stkid => VM::StkId)
+#-BUILD (list => ArrayRef[VM::Object], index => Int | object => LuaObject | stkid => VM::StkId)
 
     use lib '../';
     use VM::Object;
@@ -17,27 +17,38 @@ class VM::StkId {
     );
 
     has 'index' => (
-        is  => 'rw',
-        isa => 'Int',
+        is       => 'rw',
+        isa      => 'Int',
+        required => 1,
     );
 
     has 'list' => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object]',
-        default => sub { [] },
+        is       => 'rw',
+        isa      => 'ArrayRef[VM::Object]|Undef',
+        required => 1,
     );
 
-    method BUILD ($args) {
-        my @keys = keys $args;
+    sub BUILDARGS {
+        shift;
+        my %args = @_;
+        my @keys = keys %args;
         if ( 'stkid' ~~ @keys ) {
-            $self->list( $args->{stkid}->list );
-            $self->index( $args->{stkid}->index );
+            return {
+                list  => $args{stkid}->list,
+                index => $args{stkid}->index,
+            };
         }
         elsif ( 'object' ~~ @keys ) {
-            $self->index(0);
-            $self->list( [] );
-            $self->isolate_value( $args->{object} );
+            return {
+                list          => undef,
+                index         => 0,
+                isolate_value => $args{object}
+            };
         }
+        else {
+            return \%args;
+        }
+
     }
 
     method value ($val?) {

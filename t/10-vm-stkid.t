@@ -7,7 +7,6 @@ use warnings;
 
 use lib '../lib';
 
-#use Test::More tests => 5;
 use Test::More;
 use VM::Common::LuaType;
 use VM::Object::Number;
@@ -32,6 +31,16 @@ my $stkid2 = new VM::StkId(
     ],
     index => 1
 );
+
+my $stkid3 = new VM::StkId( stkid => $stkid );
+isa_ok $stkid3, 'VM::StkId';
+is scalar( @{ $stkid3->list } ), 4, 'clone list ok';
+is $stkid3->index, 1, 'clone index ok';
+
+my $stkid4 = new VM::StkId( object => VM::Object::Number->new( value => 2 ) );
+isa_ok $stkid4, 'VM::StkId';
+is defined( $stkid4->list ) , 0, 'clone list ok';
+is $stkid4->index, 0, 'clone index ok';
 
 isa_ok $stkid, 'VM::StkId';
 
