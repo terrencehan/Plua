@@ -36,4 +36,35 @@ is LuaOp->LUA_OPMOD, 4;
 is LuaOp->LUA_OPPOW, 5;
 is LuaOp->LUA_OPUNM, 6;
 
+use aliased 'VM::Common::LuaConf';
+is LuaConf->LUAI_BITSINT,        32;
+is LuaConf->LUAI_MAXSTACK,       1000000;
+is LuaConf->LUAI_FIRSTPSEUDOIDX, -1000000 - 1000;
+is LuaConf->LUA_SIGNATURE,       "\u001bLua";
+is LuaConf->LUA_DIRSEP,          "/";
+
+use aliased 'VM::Common::LuaDef';
+is LuaDef->LUA_MINSTACK,        20;
+is LuaDef->LUA_RIDX_MAINTHREAD, 1;
+is LuaDef->LUA_RIDX_GLOBALS,    2;
+is LuaDef->LUA_RIDX_LAST,       2;
+is LuaDef->LUA_MULTRET,         -1;
+is LuaDef->LUA_REGISTRYINDEX,   LuaConf->LUAI_FIRSTPSEUDOIDX;
+is LuaDef->LFIELDS_PER_FLUSH,   50;
+is LuaDef->LUA_IDSIZE,          60;
+is LuaDef->LUA_VERSION_MAJOR,   "5";
+is LuaDef->LUA_VERSION_MINOR,   "2";                            #TODO
+is LuaDef->LUA_VERSION,         "Lua 5.2";                      #TODO
+is LuaDef->LUA_ENV,             "_ENV";
+
+use aliased 'VM::Common::LuaConstants';
+is LuaConstants->LUA_NOREF,  -2;
+is LuaConstants->LUA_REFNIL, -1;
+
+use aliased 'VM::Common::LuaLimits';
+is LuaLimits->MAX_INT,        0b01111111_11111111_11111111_11111111 - 2;
+is LuaLimits->MAXUPVAL,       0b11111111;
+is LuaLimits->LUAI_MAXCCALLS, 200;
+is LuaLimits->MAXSTACK,       250;
+
 done_testing;
