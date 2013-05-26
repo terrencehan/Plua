@@ -39,7 +39,7 @@ is $stkid3->index, 1, 'clone index ok';
 
 my $stkid4 = new VM::StkId( object => VM::Object::Number->new( value => 2 ) );
 isa_ok $stkid4, 'VM::StkId';
-is defined( $stkid4->list ) , 0, 'clone list ok';
+is defined( $stkid4->list ) , '', 'clone list ok';
 is $stkid4->index, 0, 'clone index ok';
 
 isa_ok $stkid, 'VM::StkId';
