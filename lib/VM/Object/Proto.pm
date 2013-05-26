@@ -58,7 +58,7 @@ class VM::Object::Proto extends VM::Object {
         $self->type( VM::Common::LuaType->LUA_TPROTO );
     }
 
-    method getfuncline( Int $pc) {
+    method get_func_line( Int $pc) {
         return $pc < scalar $self->lineinfo ? $self->lineinfo->[$pc] : 0;
     };
 }

@@ -4,7 +4,18 @@
 
 use MooseX::Declare;
 
-class VM::Object::Closure extends VM::Object {
+role VM::Object::Closure {
     use lib '../../';
+
+    requires qw/get_upvalue set_upvalue/;
+
+    has 'closure_type' => (
+        is  => 'rw',
+        isa => 'VM::Common::ClosureType',
+    );
+
+    method get_upvalue ( Num $n, ScalarRef [VM::Object] $val ) { }
+    method set_upvalue ( Num $n, ScalarRef [VM::Object] $val ) { }
 }
+
 1;
