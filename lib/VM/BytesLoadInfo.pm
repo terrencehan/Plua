@@ -24,12 +24,12 @@ class VM::BytesLoadInfo extends VM::LoadInfo {
         }
     }
 
-    method peek_byte {
+    method peek_byte ($len = 1){
         if ( $self->pos >= length( $self->bytes ) ) {    #TODO: length
             return -1;
         }
         else {
-            return vec( $self->bytes, $self->pos, 8 );
+            return vec( $self->bytes, $self->pos, 8 * $len );
         }
     }
 }
