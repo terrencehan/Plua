@@ -40,7 +40,7 @@ use aliased 'VM::Common::LuaConf';
 is LuaConf->LUAI_BITSINT,        32;
 is LuaConf->LUAI_MAXSTACK,       1000000;
 is LuaConf->LUAI_FIRSTPSEUDOIDX, -1000000 - 1000;
-is LuaConf->LUA_SIGNATURE,       "\u001bLua";
+is LuaConf->LUA_SIGNATURE,       0x1b4c7561;
 is LuaConf->LUA_DIRSEP,          "/";
 
 use aliased 'VM::Common::LuaDef';
