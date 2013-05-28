@@ -11,7 +11,9 @@ role VM::Object::Closure {
 
     has 'closure_type' => (
         is  => 'rw',
-        isa => 'VM::Common::ClosureType',
+        isa => 'Int',
+
+        #isa => 'VM::Common::ClosureType',
     );
 
     method get_upvalue ( Num $n, ScalarRef [VM::Object] $val ) { }
