@@ -1,0 +1,55 @@
+Pos   Hex Data           Description or Code
+------------------------------------------------------------------------
+0000                     ** source chunk: num.lua
+                         ** global header start **
+0000  1B4C7561           header signature: "\27Lua"
+0004  51                 version (major:minor hex digits)
+0005  00                 format (0=official)
+0006  01                 endianness (1=little endian)
+0007  04                 size of int (bytes)
+0008  04                 size of size_t (bytes)
+0009  04                 size of Instruction (bytes)
+000A  08                 size of number (bytes)
+000B  00                 integral (1=integral)
+                         * number type: double
+                         * x86 standard (32-bit, little endian, doubles)
+                         ** global header end **
+                         
+000C                     ** function [0] definition (level 1)
+                         ** start of function **
+000C  08000000           string size (8)
+0010  6E756D2E6C756100   "num.lua\0"
+                         source name: num.lua
+0018  00000000           line defined (0)
+001C  00000000           last line defined (0)
+0020  00                 nups (0)
+0021  00                 numparams (0)
+0022  02                 is_vararg (2)
+0023  02                 maxstacksize (2)
+                         * code:
+0024  02000000           sizecode (2)
+0028  01000000           [1] loadk      0   0        ; 5.4
+002C  1E008000           [2] return     0   1      
+                         * constants:
+0030  01000000           sizek (1)
+0034  03                 const type 3
+0035  9A99999999991540   const [0]: (5.4)
+                         * functions:
+003D  00000000           sizep (0)
+                         * lines:
+0041  02000000           sizelineinfo (2)
+                         [pc] (line)
+0045  01000000           [1] (1)
+0049  01000000           [2] (1)
+                         * locals:
+004D  01000000           sizelocvars (1)
+0051  02000000           string size (2)
+0055  6100               "a\0"
+                         local [0]: a
+0057  01000000             startpc (1)
+005B  01000000             endpc   (1)
+                         * upvalues:
+005F  00000000           sizeupvalues (0)
+                         ** end of function **
+
+0063                     ** end of chunk **
