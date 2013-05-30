@@ -1,6 +1,6 @@
 Plua 
 =========================
-An simple implementation of Lua 5.1 written with pure Perl, it is also a part of my graduation project.
+An simple implementation of Lua 5.1(5.2?) written with pure Perl, it is also a part of my graduation project.
 
 DEPENDENCIES
 ------------------------
