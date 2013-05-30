@@ -187,6 +187,25 @@ class VM::Util {
         return 0;
     }
 
+    sub api_check_num_elems {
+        my (
+            $class,
+            $lua,    #VM::State
+            $n,      #Int
+        ) = @_;
+
+        assert(
+            $class,
+            $n < ( $lua->top->index - $lua->ci->func->index ),
+            "not enough lemets in the stack"
+        );
+    }
+
+    sub invalid_index {
+        my $class = shift;
+        assert($class, 0, "invalid index");
+    }
+
 }
 
 1;
