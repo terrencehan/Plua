@@ -13,6 +13,8 @@ class VM::Undump {
     use VM::Object::Boolean;
     use VM::Object::Number;
     use VM::Object::String;
+    use VM::Object::UpvalDesc;
+    use VM::Object::LocVar;
     use aliased 'VM::Common::ThreadStatus';
     use aliased 'VM::Common::LuaType';
 
@@ -30,7 +32,7 @@ class VM::Undump {
             $load_info,    #LoadInfo
             $name,         #Str
         ) = @_;
-        eval {
+        my $ret = eval {
             my $reader = new VM::BinaryBytesReader( load_info => $load_info );
             my $undump = new VM::Undump( reader => $reader );
             $undump->load_header();
@@ -39,6 +41,9 @@ class VM::Undump {
         if ($@) {
             $lua->o_push_string("{$name}: {$@} precompiled chunk");
             $lua->d_throw( ThreadStatus->LUA_ERRSYNTAX );
+        }
+        else {
+            return $ret;
         }
     }
 
@@ -71,7 +76,7 @@ class VM::Undump {
     }
 
     method load_instruction {
-        return new VM::Instruction( value => $self->read_uint );
+        return new VM::Instruction( value => $self->reader->read_uint );
     }
 
     method load_function {
@@ -104,23 +109,23 @@ class VM::Undump {
         for ( 1 .. $n ) {
             my $t = $self->load_byte;
             given ($t) {
-                when ( LuaType->LUA_TNIL ) {
+                when ( LuaType->LUA_TNIL . '' ) {
                     push $proto->k, new VM::Object::Nil;
                     break;
                 }
 
-                when ( LuaType->LUA_TBOOLEAN ) {
+                when ( LuaType->LUA_TBOOLEAN . '' ) {
                     push $proto->k,
                       new VM::Object::Boolean( value => $self->load_boolean );
                     break;
                 }
 
-                when ( LuaType->LUA_TNUMBER ) {
+                when ( LuaType->LUA_TNUMBER . '' ) {
                     push $proto->k,
                       new VM::Object::Number( value => $self->load_number );
                     break;
                 }
-                when ( LuaType->LUA_TSTRING ) {
+                when ( LuaType->LUA_TSTRING . '' ) {
                     push $proto->k,
                       new VM::Object::String( value => $self->load_string );
                     break;
@@ -152,13 +157,16 @@ class VM::Undump {
     }
 
     method load_debug (VM::Object::Proto $proto) {
-        my $n = $self->load_int;
         $proto->source( $self->load_string );
+
+        #line info
+        my $n = $self->load_int;
         $proto->line_info( [] );
         for ( 1 .. $n ) {
             push $proto->line_info, $self->load_int;
         }
 
+        #LocalVar
         $n = $self->load_int;
         $proto->loc_vars( [] );
         for ( 1 .. $n ) {
