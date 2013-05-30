@@ -6,7 +6,11 @@ use MooseX::Declare;
 class VM::BytesLoadInfo extends VM::LoadInfo {
 
     #-BUILD (bytes => bytes)
-    has 'bytes' => ( is => 'rw', );    #isa bytes_array
+    has 'bytes' => (    #isa bytes_array
+        is      => 'rw',
+        isa     => 'ArrayRef',
+        default => sub { [] },
+    );
     has 'pos' => (
         is      => 'rw',
         isa     => 'Int',
@@ -14,22 +18,22 @@ class VM::BytesLoadInfo extends VM::LoadInfo {
     );
 
     method read_byte {
-        if ( $self->pos >= length( $self->bytes ) ) {    #TODO: length
+        if ( $self->pos >= @{ $self->bytes } ) {
             return -1;
         }
         else {
             my $old_pos = $self->pos;
             $self->pos( $self->pos + 1 );
-            return vec( $self->bytes, $old_pos, 8 );
+            return $self->bytes->[$old_pos];
         }
     }
 
-    method peek_byte ($len = 1){
-        if ( $self->pos >= length( $self->bytes ) ) {    #TODO: length
+    method peek_byte ($len = 1) {
+        if ( $self->pos >= @{ $self->bytes } ) {
             return -1;
         }
         else {
-            return vec( $self->bytes, $self->pos, 8 * $len );
+            return @{ $self->bytes }[ $self->pos .. $self->pos + --$len ];
         }
     }
 }

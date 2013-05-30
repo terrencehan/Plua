@@ -12,8 +12,8 @@ class VM::Common::LuaConf {
     $h{LUAI_BITSINT}        = 32;
     $h{LUAI_MAXSTACK}       = $h{LUAI_BITSINT} >= 32 ? 1000000 : 15000;
     $h{LUAI_FIRSTPSEUDOIDX} = -$h{LUAI_MAXSTACK} - 1000;
-    $h{LUA_SIGNATURE} = 0x1b4c7561;    #"\u001bLua";
-    $h{LUA_DIRSEP}    = '/';           #TODO
+    $h{LUA_SIGNATURE} = pack "C*", 0x1b, 0x4c, 0x75, 0x61;    #"\u001bLua";
+    $h{LUA_DIRSEP}    = '/';                                  #TODO
 
     for ( keys %h ) {
         class_has $_ => (

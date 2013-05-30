@@ -17,8 +17,8 @@ class VM::File {
           or die "an error occured when open $file_name";
         binmode $in;
 
-        my $bytes = do { local $/; <$in>; };
-        return new VM::BytesLoadInfo( bytes => $bytes )
+        my @bytes = unpack "C*", do { local $/; <$in>; };
+        return new VM::BytesLoadInfo( bytes => \@bytes )
           ;                #TODO temporily, VM::FileLoadInfo;
     }
 
