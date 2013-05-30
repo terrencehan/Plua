@@ -5,7 +5,7 @@
 use MooseX::Declare;
 
 class VM::Object::UpvalDesc {    # no base class
-    has name     => ( is => 'rw', isa => 'Str', );
+    has name     => ( is => 'rw', isa => 'Str|Undef', );
     has index    => ( is => 'rw', isa => 'Int', );
     has in_stack => ( is => 'rw', isa => 'Bool', );
 }

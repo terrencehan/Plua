@@ -29,7 +29,7 @@ class VM::Object::Proto extends VM::Object {
         isa     => 'ArrayRef[VM::Object::UpvalDesc]',
         default => sub { [] },
     );
-    has [ 'linedefined', 'lastlinedefined', 'numparams', 'maxstacksize', ] => (
+    has [ 'line_defined', 'last_line_defined', 'num_params', 'max_stack_size', ] => (
         is  => 'rw',
         isa => 'Int',
     );
@@ -42,13 +42,13 @@ class VM::Object::Proto extends VM::Object {
         is  => 'rw',
         isa => 'Str',
     );
-    has lineinfo => (
+    has line_info => (
         is      => 'rw',
         isa     => 'ArrayRef[Int]',
         default => sub { [] },
     );
 
-    has locvars => (
+    has loc_vars => (
         is      => 'rw',
         isa     => 'ArrayRef[VM::Object::LocVar]',
         default => sub { [] },
