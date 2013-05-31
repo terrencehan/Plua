@@ -2,6 +2,7 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 use MooseX::Declare;
+use v5.10;
 
 class VM::Util {
 
@@ -203,7 +204,16 @@ class VM::Util {
 
     sub invalid_index {
         my $class = shift;
-        assert($class, 0, "invalid index");
+        assert( $class, 0, "invalid index" );
+    }
+
+    sub as {
+        my ( $class, $o, $class_name, ) = @_;
+        if ( !defined($o) ) {
+            return undef;
+        }
+        my @classes = $o->meta->linearized_isa;
+        return $class_name ~~ @classes ? $o : undef;
     }
 
 }

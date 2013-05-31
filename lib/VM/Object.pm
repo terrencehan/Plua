@@ -37,11 +37,6 @@ class VM::Object {
     method to_string  { }
     method to_literal { $self->to_string }
     method to_num     { return 0.0 }
-
-    method as (Str $class_name) {
-        my @classes = $self->meta->linearized_isa;
-        return $class_name ~~ @classes ? $self : undef;
-    }
 }
 
 1;
