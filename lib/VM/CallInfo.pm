@@ -12,7 +12,7 @@ class VM::CallInfo {
     use aliased 'VM::Util';
     use VM::Common::ThreadStatus;
 
-    has [ 'func', 'top', 'base' ] => (
+    has [ 'func', 'top', 'base', 'extra' ] => (
         is  => 'rw',
         isa => 'VM::StkId',
     );
@@ -34,6 +34,13 @@ class VM::CallInfo {
         isa => 'Int',
     );
 
+    has 'status' => (
+        is => 'rw',
+
+        #isa => 'VM::Common::ThreadStatus',
+        isa => 'Int',
+    );
+
     has 'continue_func' => (
         is  => 'rw',
         isa => 'CodeRef',
@@ -42,6 +49,11 @@ class VM::CallInfo {
     has 'saved_pc' => (
         is  => 'rw',
         isa => 'VM::Pointer',
+    );
+
+    has 'old_allow_hook' => (
+        is  => 'rw',
+        isa => 'Bool',
     );
 
     method is_lua {
