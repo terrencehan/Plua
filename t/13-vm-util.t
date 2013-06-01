@@ -1,4 +1,4 @@
-# t/11-vm-callstatus.t
+# t/13-vm-util.t
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
@@ -9,6 +9,8 @@ use lib '../lib';
 
 use Test::More;
 
+use VM::Object;
+use VM::Object::Number;
 use_ok 'VM::Util';
 
 #local $SIG{__DIE__} = sub {
@@ -62,5 +64,19 @@ is $pos, 7;
 $pos = 0;
 is VM::Util->strX2number( "0xaP1", \$pos ), 20;
 is $pos, 5;
+
+my $o = VM::Object->new;
+
+use aliased 'VM::Util';
+
+isa_ok Util->as( $o, 'VM::Object' ), 'VM::Object';
+is Util->as( $o, 'VM::Object::Nil' ), undef;
+
+my $num = new VM::Object::Number( value => 1 );
+
+isa_ok Util->as( $num, 'VM::Object' ),         'VM::Object';
+isa_ok Util->as( $num, 'VM::Object::Number' ), 'VM::Object::Number';
+is Util->as( $num,  'VM::Object::String' ), undef;
+is Util->as( undef, 'VM::Object::String' ), undef;
 
 done_testing;

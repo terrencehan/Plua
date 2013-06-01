@@ -21,11 +21,15 @@ class VM::State extends VM::Object {
     use VM::Object::Proto;
     use VM::Object::LClosure;
     use aliased 'VM::Util';
+    use aliased 'VM::OpCode';
+    use aliased 'VM::CallStatus';
     use aliased 'VM::Common::LuaType';
     use aliased 'VM::Common::LuaOp';
     use aliased 'VM::Common::LuaDef';
     use aliased 'VM::Common::LuaConf';
+    use aliased 'VM::Common::LuaLimits';
     use aliased 'VM::Common::ThreadStatus';
+    use aliased 'VM::TagMethod::TMS';
 
     method BUILD {
         $self->api($self);
@@ -45,13 +49,7 @@ class VM::State extends VM::Object {
         $self->init_stack();
     }
 
-    sub o_arith {
-        my (
-            $class,
-            $op,    # LuaOp
-            $v1,    # Num
-            $v2,    # Num
-        ) = @_;
+    method o_arith (Int $op, Num $v1, Num $v2 ) {    #$op=>LuaOp
         given ($op) {
             when ( LuaOp->LUA_OPADD . '' ) { return $v1 + $v2; }
             when ( LuaOp->LUA_OPSUB . '' ) { return $v1 - $v2; }
@@ -64,17 +62,11 @@ class VM::State extends VM::Object {
         }
     }
 
-    sub o_str2decimal {    #return Bool
-        my (
-            $class,
-            $s,            # Str
-            $result,       # ScalarRef[Num]
-        ) = @_;
-
+    method o_str2decimal (Str $s, ScalarRef[Num] $result) {  #return Bool
         $$result = 0.0;
 
         if ( $s =~ /[nN]/ ) {
-            return 0;      #false; reject `inf' and `nan'
+            return 0;    #false; reject `inf' and `nan'
         }
 
         my $pos = 0;
@@ -86,7 +78,7 @@ class VM::State extends VM::Object {
         }
 
         if ( $pos == 0 ) {
-            return 0;      #false; nothing recognized
+            return 0;    #false; nothing recognized
         }
 
         my @s_arr = split //, $s;
@@ -177,6 +169,10 @@ class VM::State extends VM::Object {
         $self->top->index( $self->top->index + 1 );
     }
 
+    method restore_stack (Int $index) {
+        return new VM::StkId( list => $self->state_stack, index => $index );
+    }
+
     method api_incr_top {
         $self->top->index( $self->top->index + 1 );
         Util->api_check( $self->top->index <= $self->ci->top->index,
@@ -196,8 +192,16 @@ class VM::State extends VM::Object {
         $self->ci( $self->base_ci );
     }
 
+    method dump_stack {
+                              #TODO for debug purpose
+    }
+
+    method dump_stack_to_string {
+        die "#TODO";
+    }
+
     #API part:
-    method new_thread {          #LuaAPI
+    method new_thread {              #LuaAPI
         my $new_lua = new VM::State( g => $self->g );
         $self->top->value($new_lua);
         $self->api_incr_top();
@@ -258,10 +262,9 @@ class VM::State extends VM::Object {
             $param, $self->top, $self->err_func );
 
         if ( $status == ThreadStatus->LUA_OK ) {
-            my $cl = ( $self->top - 1 )->value;    #VM::Object::LClosure;
-            if ( scalar @{ $cl->upvals } == 1
-                && ref($cl) eq 'VM::Object::LClosure' )
-            {
+            my $cl =
+              Util->as( ( $self->top - 1 )->value, 'VM::Object::LClosure' );
+            if ( defined($cl) && @{ $cl->upvals } == 1 ) {
                 $cl->upvals->[0]->v->value(
                     $self->g->registy->get_int( LuaDef->LUA_RIDX_GLOBALS ) );
             }
@@ -270,18 +273,18 @@ class VM::State extends VM::Object {
         return $status;
     }
 
-    method dump {                                     #LuaAPI
+    method dump {    #LuaAPI
 
         die "#TODO";
     }
 
-    method get_context {                              #LuaAPI
+    method get_context {    #LuaAPI
 
         die "#TODO";
 
     }
 
-    method call (Int $num_args, Int $num_results) {    #LuaAPI
+    method call (Int $num_args, Int $num_results) {           #LuaAPI
         $self->api->call_k( $num_args, $num_results );
     }
 
@@ -318,16 +321,57 @@ class VM::State extends VM::Object {
         die "#TODO";
     }
 
-    method check_results {
-        die "#TODO";
+    method check_results (Int $num_args, Int $num_results ){
+        Util->api_check($num_results == LuaDef->LUA_MULTRET||
+            $self->ci->top->index - $self->top->index >= $num_results - $num_args, "results from function overflow current stack size"
+        );
     }
 
     method p_call (Int $num_args, Int $num_results, Int $err_func) {    #LuaAPI
-        die "#TODO";
+        return $self->api->p_call_k($num_args, $num_results, $err_func, 0, undef );
     }
 
     method p_call_k (Int $num_args, Int $num_results, Int $err_func, Int $context, CodeRef $continue_func) { #LuaAPI
-        die "#TODO";
+        Util->api_check(!defined($continue_func) || !$self->ci->is_lua, "cannot use continuations inside hooks");
+        Util->api_check_num_elems($self, $num_args +1);
+        Util->api_check($self->status == ThreadStatus->LUA_OK, "cannot do calls on non-normal thread");
+        $self->check_results($num_args, $num_results); 
+
+        my $func; #Int
+        if($err_func == 0){
+            $func = 0;
+        }
+        else{
+            my $addr; #VM::StkId
+            if(!$self->index2addr($err_func, \$addr)){
+                Util->invalid_index();
+            }
+            $func = $addr->index;
+        }
+
+        my $status; #VM::Common::ThreadStatus
+        my $c = new VM::CallS;
+        $c->func = $self->top-($num_args+1);
+        if(!defined($continue_func) || $self->num_none_yieldable >0){#no continuatoin or no yieldable?
+            $c->num_results ( $num_results);
+            $status = $self->d_p_call($self->f_call, $c, $c->func, $func);
+        }
+        else{
+            my $ci = $self->ci;
+            $ci->continue_func ( $continue_func);
+            $ci->context($context);
+            $ci->extra($c->func);
+            $ci->old_allow_hook($self->allow_hook);
+            $ci->old_err_func($self->err_func);
+            $self->err_func($func);
+            $ci->call_status($ci->call_status | CallStatus->CIST_YPCALL);
+            $self->d_call($c->func, $num_results, 1);
+            $ci->call_status($ci->call_status & (~CallStatus->CIST_YPCALL));
+            $self->err_func($ci->old_err_func);
+            $status = ThreadStatus->LUA_OK;
+        }
+        $self->adjust_results($num_results);
+        return $status;
     }
 
     method finish_perl_call {
@@ -436,9 +480,8 @@ class VM::State extends VM::Object {
             Util->api_check( 0, "table expected" );
         }
 
-        my $tbl = $addr->value;
-        Util->api_check( defined($tbl) && ref($tbl) eq 'VM::Object::Table',
-            "table expected" );
+        my $tbl = Util->as( $addr->value, 'VM::Object::Table' );
+        Util->api_check( defined($tbl), "table expected" );
         $self->top->value( $tbl->get_int($n) );
         $self->api_incr_top;
     }
@@ -459,107 +502,143 @@ class VM::State extends VM::Object {
         die "#TODO";
     }
 
+=item get_field
+Pushes onto the stack the value t[k],  where t is the value at the 
+given index. As in Lua,  this function may trigger a metamethod for 
+the "index" event
+=cut
+
     method get_field {                        #LuaAPI
         die "#TODO";
     }
 
+=item set_field
+Does the equivalent to t[k] = v,  where t is the value at the given 
+index and v is the value at the top of the stack.  This function pops 
+the value from the stack. As in Lua, this function may trigger a 
+metamethod for the "newindex" event
+=cut
+
     method set_field (Int $index, Str $key) {    #LuaAPI
-        #my_path:1
+                       #my_path:1
         my $addr;      #VM::StkId
         if ( !$self->index2addr( $index, \$addr ) ) {
             Util->invalid_index();
         }
         $self->top->value_inc( new VM::Object::String( value => $key ) );
-        $self->v_set_table( #my_path:2
+        $self->v_set_table(    #my_path:2
             $addr->value,
             ( $self->top - 1 )->value,
             $self->top - 2
         );
-        $self->top( $self->top + 2 );
+        $self->top( $self->top - 2 );
     }
 
-    method concat {    #LuaAPI
+    method concat {               #LuaAPI
         die "#TODO";
     }
 
-    method get_type { #name conflict with attr "type"                            #LuaAPI
+    method api_type (Int $index) { #name conflict with attr "type"                            #LuaAPI
+        my $addr;    #VM::StkId
+        if ( !$self->index2addr( $index, \$addr ) ) {
+            return LuaType->LUA_TNONE;
+        }
+
+        return $addr->value->type;
+    }
+
+    method type_name (Int $t) {    #LuaAPI
+        given ($t) {
+
+            when ( LuaType->LUA_TNIL . '' )           { return "nil"; }
+            when ( LuaType->LUA_TBOOLEAN . '' )       { return "boolean"; }
+            when ( LuaType->LUA_TLIGHTUSERDATA . '' ) { return "userdata"; }
+            when ( LuaType->LUA_TUINT64 . '' )        { return "userdata"; }
+            when ( LuaType->LUA_TNUMBER . '' )        { return "number"; }
+            when ( LuaType->LUA_TSTRING . '' )        { return "string"; }
+            when ( LuaType->LUA_TTABLE . '' )         { return "table"; }
+            when ( LuaType->LUA_TFUNCTION . '' )      { return "function"; }
+            when ( LuaType->LUA_TUSERDATA . '' )      { return "userdata"; }
+            when ( LuaType->LUA_TTHREAD . '' )        { return "thread"; }
+            when ( LuaType->LUA_TPROTO . '' )         { return "proto"; }
+            when ( LuaType->LUA_TUPVAL . '' )         { return "upval"; }
+            default                                   { return "no value"; }
+        }
+    }
+
+    method obj_type_name (VM::Object $o) {
+        return $self->type_name( $o->type );
+    }
+
+    method o_push_string (Str $s) {
+        $self->top->value( new VM::Object::String( value => $s ) );
+        $self->incr_top;
+    }
+
+    method api_is_nil (Int $index) {       #LuaAPI
+        return $self->api->api_type($index) == LuaType->LUA_TNIL;
+    }
+
+    method api_is_none (Int $index) {      #LuaAPI
+        return $self->api->api_type($index) == LuaType->LUA_TNONE;
+    }
+
+    method api_is_none_or_nil (Int $index) {    #LuaAPI
+        my $t = $self->api->api_type($index);
+        return $t == LuaType->LUA_TNONE || $t == LuaType->LUA_TNIL;
+    }
+
+    method api_is_string (Int $index) {         #LuaAPI
+        my $t = $self->api->api_type($index);
+        return ( $t == LuaType->LUA_TSTRING || $t == LuaType->LUA_TNUMBER );
+    }
+
+    method api_is_table (Int $index) {          #LuaAPI
+        return $self->api->api_type($index) == LuaType->LUA_TTABLE;
+    }
+
+    method api_is_function (Int $index) {       #LuaAPI
+        return $self->api->api_type($index) == LuaType->LUA_TFUNCTION;
+    }
+
+    method compare {               #LuaAPI
         die "#TODO";
     }
 
-    method type_name {    #LuaAPI
+    method raw_equal {             #LuaAPI
         die "#TODO";
     }
 
-    method obj_type_name {
+    method raw_len {               #LuaAPI
         die "#TODO";
     }
 
-    method o_push_string {
+    method len {                   #LuaAPI
         die "#TODO";
     }
 
-    method is_nil {           #LuaAPI
-        die "#TODO";
-    }
-
-    method is_none {          #LuaAPI
-        die "#TODO";
-    }
-
-    method is_none_or_nil {    #LuaAPI
-        die "#TODO";
-    }
-
-    method is_string {         #LuaAPI
-        die "#TODO";
-    }
-
-    method is_table {          #LuaAPI
-        die "#TODO";
-    }
-
-    method is_function {       #LuaAPI
-        die "#TODO";
-    }
-
-    method compare {           #LuaAPI
-        die "#TODO";
-    }
-
-    method raw_equal {         #LuaAPI
-        die "#TODO";
-    }
-
-    method raw_len {           #LuaAPI
-        die "#TODO";
-    }
-
-    method len {               #LuaAPI
-        die "#TODO";
-    }
-
-    method push_nil {          #LuaAPI
+    method push_nil {              #LuaAPI
         $self->top->value( new VM::Object::Nil );
         $self->api_incr_top;
     }
 
-    method push_boolean {      #LuaAPI
+    method push_boolean {          #LuaAPI
         die "#TODO";
     }
 
-    method push_number {       #LuaAPI
+    method push_number {           #LuaAPI
         die "#TODO";
     }
 
-    method push_integer {      #LuaAPI
+    method push_integer {          #LuaAPI
         die "#TODO";
     }
 
-    method push_unsigned {     #LuaAPI
+    method push_unsigned {         #LuaAPI
         die "#TODO";
     }
 
-    method push_string (Str $s) {       #LuaAPI
+    method push_string (Str $s) {           #LuaAPI
         if ( !defined($s) ) {
             $self->api->push_nil;
             return undef;
@@ -625,8 +704,8 @@ class VM::State extends VM::Object {
         if ( !$self->index2addr( $index, \$addr ) ) {
             return undef;
         }
-        my $s = $addr->value;
-        if ( ref($s) eq 'VM::Object::String' ) {
+        my $s = Util->as( $addr->value, 'VM::Object::String' );
+        if ( !defined($s) ) {
             return $addr->value->to_literal;
         }
         else {
@@ -726,8 +805,8 @@ class VM::State extends VM::Object {
     #end of API part
 
     #DO part
-    method d_throw {
-        die "#TODO";
+    method d_throw (Int $err_code) {    #ThreadStatus
+        die new VM::RuntimeException( err_code => $err_code );
     }
 
     method d_raw_run_protected (CodeRef $func, $ud) {
@@ -779,20 +858,120 @@ class VM::State extends VM::Object {
         return $status;
     }
 
-    method d_call {
-        die "#TODO";
+    method d_call (VM::StkId $func, Int $n_results, Bool $allow_yield) {
+        if ( $self->num_perl_calls( $self->num_perl_calls + 1 ) >=
+            LuaLimits->LUAI_MAXCCALLS )
+        {
+            if ( $self->num_perl_calls == LuaLimits->LUAI_MAXCCALLS ) {
+                $self->g_run_error('Perl Stack Overflow');
+            }
+            elsif (
+                $self->num_perl_calls >= (
+                    LuaLimits->LUAI_MAXCCALLS +
+                      ( LuaLimits->LUAI_MAXCCALLS >> 3 )
+                )
+              )
+            {
+                $self->d_throw( ThreadStatus->LUA_ERRERR );
+
+            }
+        }
+        if ( !$allow_yield ) {
+            $self->num_none_yieldable( $self->num_none_yieldable + 1 );
+        }
+        if ( !$self->d_pre_call( $func, $n_results ) ) {
+            $self->v_execute();
+        }
+        if ( !$allow_yield ) {
+            $self->num_none_yieldable( $self->num_none_yieldable - 1 );
+        }
+        $self->num_perl_calls( $self->num_perl_calls - 1 );
     }
 
-    method d_pre_call {
-        die "#TODO";
+    method d_pre_call (VM::StkId $func, Int $n_results) {
+                        #if $func is a perl function, execute it and return true
+                        #else prepare for Lua call, return false
+
+        my $cl = Util->as( $func->value );
+        if ( defined($cl) ) {
+            my $p = $cl->proto;
+
+            #add nil if the number of argument is not enough
+            my $n = ( $self->top->index - $func->index ) - 1;
+            for ( ; $n < $p->num_params ; ++$n ) {
+                $self->top->value( new VM::Object::Nil );
+                $self->top->index( $self->top->index + 1 );
+            }
+
+            my $stack_base =
+                ( !$p->is_vararg )
+              ? ( $func + 1 )
+              : $self->adjust_varargs( $p, $n );    #VM::StkId
+
+            $self->ci( $self->extend_ci );
+            $self->ci->num_results($n_results);
+            $self->ci->func($func);
+            $self->ci->base($stack_base);
+            $self->ci->top( $stack_base + $p->max_stack_size );
+            $self->ci->saved_pc(
+                new VM::Pointer( list => $p->code, index => 0 ) );
+            $self->ci->call_status( CallStatus->CIST_LUA );
+
+            $self->top( $self->ci->top );
+
+            return 0;    #false
+        }
+
+        my $pcl = Util->as( $func->value, 'VM::Object::PClosure' );
+        if ( defined($pcl) ) {
+
+            $self->ci( $self->extend_ci );
+            $self->ci->num_results($n_results);
+            $self->ci->func($func);
+            $self->ci->top( $self->top + LuaDef->LUA_MINSTACK );
+            $self->ci->call_status( CallStatus->CIST_NONE );
+
+            #do the actual call
+            my $n = $pcl->f->($self);
+
+            #poscall
+            $self->d_pos_call( $self->top - $n );
+
+            return 1;    #true
+        }
+
+        #not a function
+        #retry with `function' tag method
+        $func = $self->try_func_tm($func);
+
+        #now it must be a function
+        return $self->d_pre_call( $func, $n_results );
     }
 
-    method d_pos_call {
-        die "#TODO";
+    method d_pos_call (VM::StkId $first_result) {
+        my $ci     = $self->ci;          #VM::CallInfo
+        my $res    = $ci->func;          #VM::StkId
+        my $wanted = $ci->num_results;
+
+        $self->ci( $ci->previous );
+        my $i = $wanted;
+        for ( ; $i != 0 && $first_result->index < $self->top->index ; --$i ) {
+            $res->value_inc( $first_result->value_inc );
+        }
+        while ( $i-- > 0 ) {
+            $res->value_inc( new VM::Object::Nil );
+        }
+
+        $self->top($res);
+        return ( $wanted - LuaDef->LUA_MULTRET );
     }
 
     method extend_ci {
-        die "#TODO";
+        my $ci = new VM::CallInfo;
+        $self->ci->next($ci);
+        $ci->previous( $self->ci );
+        $ci->next(undef);
+        return $ci;
     }
 
     method adjust_varargs {
@@ -1056,30 +1235,162 @@ class VM::State extends VM::Object {
 
     #VM part
 
-    has 'MAXTAGLOOP' => (
-        is      => 'ro',
-        isa     => 'Int',
-        default => 100,
-    );
-
     method v_execute {
         die "#TODO";
+        my $env;       #VM::ExecuteEnvironment
+        my $ci = $self->ci;
+      newframe:
+        my $cl = Util->as( $ci->func->value, 'VM::Object::LClosure' );
+        $env->k( new VM::StkId( list => $cl->proto->k, index => 0 ) );
+        $env->base( $ci->base );
+
+        while (1) {
+            my $i = $ci->saved_pc->value_inc;    #VM::Instruction
+            $env->i($i);
+            my $ra = $env->RA;
+            $self->dump_stack( $env->base->index );
+
+            given ( $i->GET_OPCODE() ) {
+                when ( Opcode->OP_MOVE . '' ) {
+                    my $rb = $env->RB;
+                    $ra->value( $rb->value );
+                    break;
+                }
+                when ( Opcode->OP_LOADK . '' ) {
+                    my $rb = $env->k + $i->GETARG_Bx();    #VM::StkId
+                    $ra->value( $rb->value );
+                    break;
+                }
+                when ( Opcode->OP_LOADKX . '' )   { die "#TODO"; }
+                when ( Opcode->OP_LOADBOOL . '' ) { die "#TODO"; }
+                when ( Opcode->OP_LOADNIL . '' )  { die "#TODO"; }
+                when ( Opcode->OP_GETUPVAL . '' ) { die "#TODO"; }
+                when ( Opcode->OP_GETTABUP . '' ) { die "#TODO"; }
+                when ( Opcode->OP_GETTABLE . '' ) { die "#TODO"; }
+                when ( Opcode->OP_SETTABUP . '' ) { die "#TODO"; }
+                when ( Opcode->OP_SETUPVAL . '' ) { die "#TODO"; }
+                when ( Opcode->OP_SETTABLE . '' ) { die "#TODO"; }
+                when ( Opcode->OP_NEWTABLE . '' ) { die "#TODO"; }
+                when ( Opcode->OP_SELF . '' )     { die "#TODO"; }
+                when ( Opcode->OP_ADD . '' )      { die "#TODO"; }
+                when ( Opcode->OP_SUB . '' )      { die "#TODO"; }
+                when ( Opcode->OP_MUL . '' )      { die "#TODO"; }
+                when ( Opcode->OP_DIV . '' )      { die "#TODO"; }
+                when ( Opcode->OP_MOD . '' )      { die "#TODO"; }
+                when ( Opcode->OP_POW . '' )      { die "#TODO"; }
+                when ( Opcode->OP_UNM . '' )      { die "#TODO"; }
+                when ( Opcode->OP_NOT . '' )      { die "#TODO"; }
+                when ( Opcode->OP_LEN . '' )      { die "#TODO"; }
+                when ( Opcode->OP_CONCAT . '' )   { die "#TODO"; }
+                when ( Opcode->OP_JMP . '' )      { die "#TODO"; }
+                when ( Opcode->OP_EQ . '' )       { die "#TODO"; }
+                when ( Opcode->OP_LT . '' )       { die "#TODO"; }
+                when ( Opcode->OP_LE . '' )       { die "#TODO"; }
+                when ( Opcode->OP_TEST . '' )     { die "#TODO"; }
+                when ( Opcode->OP_TESTSET . '' )  { die "#TODO"; }
+                when ( Opcode->OP_CALL . '' )     { die "#TODO"; }
+                when ( Opcode->OP_TAILCALL . '' ) { die "#TODO"; }
+                when ( Opcode->OP_RETURN . '' )   { die "#TODO"; }
+                when ( Opcode->OP_FORLOOP . '' )  { die "#TODO"; }
+                when ( Opcode->OP_FORPREP . '' )  { die "#TODO"; }
+                when ( Opcode->OP_TFORCALL . '' ) { die "#TODO"; }
+                when ( Opcode->OP_TFORLOOP . '' ) { die "#TODO"; }
+                when ( Opcode->OP_SETLIST . '' )  { die "#TODO"; }
+                when ( Opcode->OP_CLOSURE . '' )  { die "#TODO"; }
+                when ( Opcode->OP_VARARG . '' )   { die "#TODO"; }
+                when ( Opcode->OP_EXTRAARG . '' ) { die "#TODO"; }
+                default                           { die "#TODO"; }
+            }
+        }
+
     }
 
     method v_not_implemented {
         die "#TODO";
     }
 
-    method fast_tm {
-        die "#TODO";
+    method fast_tm (VM::Object::Table $et, Int $tm) {    #$tm=>TMS
+        if ( !defined($et) ) {
+            return undef;
+        }
+
+        if ( ( $et->flags & ( 1 << $tm ) ) != 0 ) {
+            return undef;
+        }
+
+        return $self->t_get_tm( $et, $tm );
     }
 
-    method v_get_table {
-        die "#TODO";
+    method v_get_table (VM::Object $t, VM::Object $key, VM::StkId $val) {
+        for ( 1 .. LuaConf->MAXTAGLOOP ) {
+            my $tm_obj;    #VM::Object;
+            my $tbl = Util->as( $t, 'VM::Object::Table' );
+            if ( defined($tbl) ) {
+                my $res = $tbl->get($key);
+                if ( !$res->is_nil ) {
+                    $val->value($res);
+                    return;
+                }
+                $tm_obj = $self->fast_tm( $tbl->meta_table, TMS->TM_INDEX );
+                if ( !defined($tm_obj) ) {
+                    $val->value($res);
+                    return;
+                }
+
+                # else will try the tagmethod
+            }
+            else {
+                $tm_obj = $self->t_get_tm_by_obj( $t, TMS->TM_INDEX );
+                if ( $tm_obj->is_nil ) {
+                    $self->g_simple_type_error( $t, "index" );
+                }
+            }
+
+            if ( $tm_obj->is_function ) {
+                $self->call_tm( $tm_obj, $t, $key, $val, 1 );
+                return;
+            }
+            $t = $tm_obj;
+        }
+        $self->g_run_error('loop in gettable');
     }
 
-    method v_set_table {#my_path:3
-        die "#TODO";
+    method v_set_table (VM::Object $t, VM::Object $key, VM::StkId $val) {    #my_path:3
+        for ( 1 .. LuaConf->MAXTAGLOOP ) {
+            my $tm_obj;    #VM::Object
+            my $tbl = Util->( $t, "VM::Object::Table" );
+            if ( defined($tbl) ) {
+                my $old_val = $tbl->get($key);
+                if ( !$old_val->is_nil ) {
+                    $tbl->set( $key, $val->value );
+                    return;
+                }
+
+                #check metamethod
+                $tm_obj = $self->fast_tm( $tbl->meta_table, TMS->TM_NEWINDEX )
+                  ;        #my_path:4 fast_tm?
+                if ( !defined($tm_obj) ) {
+                    $tbl->set( $key, $val->value );
+                    return;
+                }
+
+                # else will try the tagmethod
+            }
+            else {
+                $tm_obj = $self->t_get_tm_by_obj( $t, TMS->TM_INDEX );
+                if ( $tm_obj->is_nil ) {
+                    $self->g_simple_type_error( $t, "index" )
+                      ;    #my_path:5 g_simple_type_error?
+                }
+            }
+
+            if ( $tm_obj->is_function ) {
+                $self->call_tm( $tm_obj, $t, $key, $val, 1 );
+                return;
+            }
+            $t = $tm_obj;
+        }
+        $self->g_run_error('loop in gettable');    #my_path:6 g_run_error?
     }
 
     method v_push_closure {
@@ -1106,20 +1417,62 @@ class VM::State extends VM::Object {
         die "#TODO";
     }
 
-    method tms2op {
-        die "#TODO";
+    method tms2op (Int $op) {                                   #$op=>TMS
+        given ($op) {
+            when ( TMS->TM_ADD . '' ) { return LuaOp->LUA_OPADD; }
+            when ( TMS->TM_SUB . '' ) { return LuaOp->LUA_OPSUB; }
+            when ( TMS->TM_MUL . '' ) { return LuaOp->LUA_OPMUL; }
+            when ( TMS->TM_DIV . '' ) { return LuaOp->LUA_OPDIV; }
+            when ( TMS->TM_POW . '' ) { return LuaOp->LUA_OPPOW; }
+            when ( TMS->TM_UNM . '' ) { return LuaOp->LUA_OPUNM; }
+            default                   { die __FILE__ . ':' . __LINE__; }
+        }
     }
 
-    method call_tm {
-        die "#TODO";
+    method call_tm ( VM::Object $f, VM::Object $p1, VM::Object $p2, VM::StkId $p3, Bool $has_res) {
+        my $func = $self->top;
+        $self->top->value_inc($f);     #push function
+        $self->top->value_inc($p1);    #push 1st argument
+        $self->top->value_inc($p2);    #push 2nd argument
+        if ( !$has_res ) {
+            $self->top->value_inc( $p3->value );
+        }
+        $self->d_call( $func, ( $has_res ? 1 : 0 ), $self->ci->is_lua );
+        if ($has_res) {
+
+            #move result to its place
+            my $below = $self->top - 1;
+            $p3->value( $below->value );
+            $self->top( $self->top - 1 );
+        }
+
     }
 
-    method call_bin_tm {
-        die "#TODO";
+    method call_bin_tm (VM::StkId $p1, VM::StkId $p2, VM::StkId $res, Int $tm) { #$tm=>TMS
+        my $tm_obj = $self->t_get_tm_by_obj( $p1->value, $tm );
+        if ( $tm_obj->is_nil ) {
+            $tm_obj = $self->t_get_tm_by_obj( $p1->value, $tm );
+        }
+        if ( $tm_obj->is_nil ) {
+            return 0;    #false;
+        }
+
+        $self->call_tm( $tm_obj, $p1->value, $p2->value, $res, 1 );
+        return 1;        #true
     }
 
-    method v_arith {
-        die "#TODO";
+    method v_arith (VM::StkId $ra, VM::StkId $rb, VM::StkId $rc, Int $op) { #$op=>TMS
+
+        my $b = $self->v_to_number( $rb->value );
+        my $c = $self->v_to_number( $rc->value );
+        if ( defined($b) && defined($c) ) {
+            my $res =
+              $self->o_arith( $self->tms2op($op), $b->value, $c->value );
+            $ra->value( new VM::Object::Number( value => $res ) );
+        }
+        elsif ( !$self->call_bin_tm( $rb, $rc, $ra, $op ) ) {
+            $self->g_arith_error( $rb, $rc );
+        }
     }
 
     method call_order_tm {
@@ -1155,6 +1508,179 @@ class VM::State extends VM::Object {
     }
 
     #end of VM part
+
+    #TagMethod part
+    method get_tag_method_name (Int $tm) {    #$tm=>TMS
+        given ($tm) {
+            when ( TMS->TM_INDEX . '' )    { return "__index"; }
+            when ( TMS->TM_NEWINDEX . '' ) { return "__newindex"; }
+            when ( TMS->TM_GC . '' )       { return "__gc"; }
+            when ( TMS->TM_MODE . '' )     { return "__mode"; }
+            when ( TMS->TM_LEN . '' )      { return "__len"; }
+            when ( TMS->TM_EQ . '' )       { return "__eq"; }
+            when ( TMS->TM_ADD . '' )      { return "__add"; }
+            when ( TMS->TM_SUB . '' )      { return "__sub"; }
+            when ( TMS->TM_MUL . '' )      { return "__mul"; }
+            when ( TMS->TM_DIV . '' )      { return "__div"; }
+            when ( TMS->TM_MOD . '' )      { return "__mod"; }
+            when ( TMS->TM_POW . '' )      { return "__pow"; }
+            when ( TMS->TM_UNM . '' )      { return "__unm"; }
+            when ( TMS->TM_LT . '' )       { return "__lt"; }
+            when ( TMS->TM_LE . '' )       { return "__le"; }
+            when ( TMS->TM_CONCAT . '' )   { return "__concat"; }
+            when ( TMS->TM_CALL . '' )     { return "__call"; }
+            default                        { die __FILE__ . ':' . __LINE__; }
+        }
+    }
+
+    method t_get_tm (VM::Object::Table $mt, Int $tm) {    #$tm=>TMS
+        if ( !defined($mt) ) {
+            return undef;
+        }
+        my $res = $mt->get_str( $self->get_tag_method_name($tm) );
+        if ( $res->is_nil ) {    # no tag method?
+            $mt->flags( $mt->flags | ( 1 << $tm ) );
+            return undef;
+        }
+        else {
+            return $res;
+        }
+    }
+
+    method t_get_tm_by_obj (VM::Object $o, Int $tm) {        #$tm=>TMS
+        my $mt;                  #VM::Object::Table
+        given ( $o->type ) {
+            when ( LuaType->LUA_TTABLE . '' ) {
+                $mt = $o->meta_table;
+                break;
+            }
+            when ( LuaType->LUA_TUSERDATA . '' ) {
+                $mt = $o->meta_table;
+                break;
+            }
+            default {
+                $mt = $self->g->metatables->[ $o->type ];
+                break;
+            }
+        }
+        return defined($mt)
+          ? $mt->get_str( $self->get_tag_method_name($tm) )
+          : VM::Object::Nil->new;
+    }
+
+    #end of TagMethod part
+
+    #Debug part
+    method get_stack {    #LuaAPI
+        die "#TODO";
+    }
+
+    method get_info {
+        die "#TODO";
+    }
+
+    method aux_get_info {
+        die "#TODO";
+    }
+
+    method collect_valid_lines {
+        die "#TODO";
+    }
+
+    method get_func_name {
+        die "#TODO";
+    }
+
+    method func_info {
+        die "#TODO";
+    }
+
+    method add_info (Str $msg) {
+        if ( $self->ci->is_lua ) {
+            my $line = $self->ci->current_line;
+            my $src  = $self->ci->current_lua_func->proto->source;
+            if ( !defined($src) ) {
+                $src = "?";
+            }
+
+            # we cannot use `push_string' here, one of APIs,
+            # in which `api_incr_top' will check if `top'
+            # is greater than `ci->top'
+            $self->o_push_string("{$src}:{$line}: {$msg}");
+        }
+    }
+
+    method g_run_error (Str $msg) {
+        $self->add_info($msg);
+        $self->g_error_msg();    #my_path:8
+    }
+
+    method g_error_msg {
+        if ( $self->err_func != 0 ) {    #is there an error handling funcion?
+            my $err_func = $self->restore_stack( $self->err_func );
+
+            my $lcl = Util->as( $err_func->value, 'VM::Object::LClosure' );
+            my $pcl = Util->as( $err_func->value, 'VM::Object::PClosure' );
+            if ( !defined($lcl) && !defined($pcl) ) {
+                $self->d_throw( ThreadStatus->LUA_ERRERR );
+            }
+            my $below = $self->top - 1;
+            $self->top->value( $below->value );
+            $below->value( $err_func->value );
+            $self->incr_top();
+
+            $self->d_call( $below, 1, 0 );    #my_path:9
+        }
+    }
+
+    method upval_name {
+        die "#TODO";
+
+    }
+
+    method get_upvalue_name {
+        die "#TODO";
+
+    }
+
+    method k_name {
+        die "#TODO";
+
+    }
+
+    method find_set_reg {
+        die "#TODO";
+    }
+
+    method get_obj_name {
+        die "#TODO";
+    }
+
+    method is_in_stack {
+        die "#TODO";
+    }
+
+    method g_simple_type_error (VM::Object $o, Str $op) {
+        my $t = $self->obj_type_name($o);
+        $self->g_run_error("attempt to {$op} a {$t} value");    #my_path:7
+    }
+
+    method g_type_error {
+        die "#TODO";
+    }
+
+    method g_arith_error {
+        die "#TODO";
+    }
+
+    method g_order_error {
+        die "#TODO";
+    }
+
+    method g_concate_error {
+        die "#TODO";
+    }
+
+    #end of Debug part
 }
 
-1;
