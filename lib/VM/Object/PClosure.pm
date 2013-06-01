@@ -10,8 +10,9 @@ class VM::Object::PClosure with VM::Object::Closure extends VM::Object {
     use VM::Common::ClosureType;
     use VM::Common::LuaType;
     has 'f' => (
-        is  => 'rw',
-        isa => 'CodeRef',
+        is       => 'rw',
+        isa      => 'CodeRef',
+        required => 1,
     );
 
     has 'upvals' => (

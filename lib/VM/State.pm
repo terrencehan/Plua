@@ -321,53 +321,64 @@ class VM::State extends VM::Object {
         die "#TODO";
     }
 
-    method check_results (Int $num_args, Int $num_results ){
-        Util->api_check($num_results == LuaDef->LUA_MULTRET||
-            $self->ci->top->index - $self->top->index >= $num_results - $num_args, "results from function overflow current stack size"
+    method check_results (Int $num_args, Int $num_results ) {
+        Util->api_check(
+            $num_results == LuaDef->LUA_MULTRET
+              || $self->ci->top->index - $self->top->index >=
+              $num_results - $num_args,
+            "results from function overflow current stack size"
         );
     }
 
     method p_call (Int $num_args, Int $num_results, Int $err_func) {    #LuaAPI
-        return $self->api->p_call_k($num_args, $num_results, $err_func, 0, undef );
+        return $self->api->p_call_k( $num_args, $num_results, $err_func, 0,
+            undef );
     }
 
     method p_call_k (Int $num_args, Int $num_results, Int $err_func, Int $context, CodeRef $continue_func) { #LuaAPI
-        Util->api_check(!defined($continue_func) || !$self->ci->is_lua, "cannot use continuations inside hooks");
-        Util->api_check_num_elems($self, $num_args +1);
-        Util->api_check($self->status == ThreadStatus->LUA_OK, "cannot do calls on non-normal thread");
-        $self->check_results($num_args, $num_results); 
+        Util->api_check(
+            !defined($continue_func) || !$self->ci->is_lua,
+            "cannot use continuations inside hooks"
+        );
+        Util->api_check_num_elems( $self, $num_args + 1 );
+        Util->api_check(
+            $self->status == ThreadStatus->LUA_OK,
+            "cannot do calls on non-normal thread"
+        );
+        $self->check_results( $num_args, $num_results );
 
-        my $func; #Int
-        if($err_func == 0){
+        my $func;    #Int
+        if ( $err_func == 0 ) {
             $func = 0;
         }
-        else{
-            my $addr; #VM::StkId
-            if(!$self->index2addr($err_func, \$addr)){
+        else {
+            my $addr;    #VM::StkId
+            if ( !$self->index2addr( $err_func, \$addr ) ) {
                 Util->invalid_index();
             }
             $func = $addr->index;
         }
 
-        my $status; #VM::Common::ThreadStatus
+        my $status;      #VM::Common::ThreadStatus
         my $c = new VM::CallS;
-        $c->func = $self->top-($num_args+1);
-        if(!defined($continue_func) || $self->num_none_yieldable >0){#no continuatoin or no yieldable?
-            $c->num_results ( $num_results);
-            $status = $self->d_p_call($self->f_call, $c, $c->func, $func);
+        $c->func = $self->top - ( $num_args + 1 );
+        if ( !defined($continue_func) || $self->num_none_yieldable > 0 )
+        {                #no continuatoin or no yieldable?
+            $c->num_results($num_results);
+            $status = $self->d_p_call( $self->f_call, $c, $c->func, $func );
         }
-        else{
+        else {
             my $ci = $self->ci;
-            $ci->continue_func ( $continue_func);
+            $ci->continue_func($continue_func);
             $ci->context($context);
-            $ci->extra($c->func);
-            $ci->old_allow_hook($self->allow_hook);
-            $ci->old_err_func($self->err_func);
+            $ci->extra( $c->func );
+            $ci->old_allow_hook( $self->allow_hook );
+            $ci->old_err_func( $self->err_func );
             $self->err_func($func);
-            $ci->call_status($ci->call_status | CallStatus->CIST_YPCALL);
-            $self->d_call($c->func, $num_results, 1);
-            $ci->call_status($ci->call_status & (~CallStatus->CIST_YPCALL));
-            $self->err_func($ci->old_err_func);
+            $ci->call_status( $ci->call_status | CallStatus->CIST_YPCALL );
+            $self->d_call( $c->func, $num_results, 1 );
+            $ci->call_status( $ci->call_status & ( ~CallStatus->CIST_YPCALL ) );
+            $self->err_func( $ci->old_err_func );
             $status = ThreadStatus->LUA_OK;
         }
         $self->adjust_results($num_results);
@@ -520,13 +531,12 @@ metamethod for the "newindex" event
 =cut
 
     method set_field (Int $index, Str $key) {    #LuaAPI
-                       #my_path:1
         my $addr;      #VM::StkId
         if ( !$self->index2addr( $index, \$addr ) ) {
             Util->invalid_index();
         }
         $self->top->value_inc( new VM::Object::String( value => $key ) );
-        $self->v_set_table(    #my_path:2
+        $self->v_set_table(
             $addr->value,
             ( $self->top - 1 )->value,
             $self->top - 2
@@ -534,7 +544,7 @@ metamethod for the "newindex" event
         $self->top( $self->top - 2 );
     }
 
-    method concat {               #LuaAPI
+    method concat {    #LuaAPI
         die "#TODO";
     }
 
@@ -650,19 +660,46 @@ metamethod for the "newindex" event
         }
     }
 
-    method push_perl_function {    #LuaAPI
-        die "#TODO";
+    method push_perl_function (CodeRef $f) {    #LuaAPI
+
+        $self->api->push_perl_closure( $f, $0 );
     }
 
-    method push_perl_closure {     #LuaAPI
-        die "#TODO";
+    method push_perl_closure (CodeRef $f, Int $n) {     #LuaAPI
+
+        if ( $n == 0 ) {
+            $self->top->value( new VM::Object::PClosure( f => $f ) );
+        }
+        else {
+            # perl function with upvalues
+            Util->api_check_num_elems( $self, $n );
+            Util->api_check( $n <= LuaLimits->MAXUPVAL,
+                "upvalue index too large" );
+            my $pcl = new VM::Object::PClosure( f => $f );
+            my $src = $self->top - $n;
+            while ( $src->index < $self->top->index ) {
+                push $pcl->upvals, $src->value_inc;
+            }
+            $self->top->index( $self->top->index - $n );
+            $self->top->value($pcl);
+        }
+        $self->api_incr_top();
     }
 
-    method push_value {            #LuaAPI
-        die "#TODO";
+=item push_value
+Pushes a copy of the element at the given index onto the stack.
+=cut
+
+    method push_value (Int $index) {    #LuaAPI
+        my $addr;       #VM::StkId
+        if ( !$self->index2addr( $index, \$addr ) ) {
+            Util->invalid_index();
+        }
+        $self->top->value( $addr->value );
+        $self->api_incr_top();
     }
 
-    method push_global_table {     #LuaAPI
+    method push_global_table {    #LuaAPI
         $self->api->raw_get_i( LuaDef->LUA_REGISTRYINDEX,
             LuaDef->LUA_RIDX_GLOBALS );
     }
@@ -1178,8 +1215,25 @@ metamethod for the "newindex" event
         die "#TODO";
     }
 
-    method l_set_funcs {
-        die "#TODO";
+=item l_set_funcs
+Registers all functions in the array l (see luaL_Reg) into the table on 
+the top of the stack (below optional upvalues, see next).
+
+When nup is not zero, all functions are created sharing nup upvalues, 
+which must be previously pushed on the stack on top of the library table. 
+These values are popped from the stack after the registration.
+
+=cut
+
+    method l_set_funcs ( ArrayRef [Common::NameFuncPair] $define, Int $nup) {
+        for my $pair (@$define) {
+            for ( 1 .. $nup ) {
+                $self->api->push_value( -$nup );
+            }
+            $self->api->push_perl_closure( $pair->func, $nup );
+            $self->api->set_field( -( $nup + 2 ), $pair->name );
+        }
+        $self->api->pop($nup);
     }
 
     method find_field {
@@ -1355,7 +1409,7 @@ metamethod for the "newindex" event
         $self->g_run_error('loop in gettable');
     }
 
-    method v_set_table (VM::Object $t, VM::Object $key, VM::StkId $val) {    #my_path:3
+    method v_set_table (VM::Object $t, VM::Object $key, VM::StkId $val) {
         for ( 1 .. LuaConf->MAXTAGLOOP ) {
             my $tm_obj;    #VM::Object
             my $tbl = Util->( $t, "VM::Object::Table" );
@@ -1367,8 +1421,7 @@ metamethod for the "newindex" event
                 }
 
                 #check metamethod
-                $tm_obj = $self->fast_tm( $tbl->meta_table, TMS->TM_NEWINDEX )
-                  ;        #my_path:4 fast_tm?
+                $tm_obj = $self->fast_tm( $tbl->meta_table, TMS->TM_NEWINDEX );
                 if ( !defined($tm_obj) ) {
                     $tbl->set( $key, $val->value );
                     return;
@@ -1379,8 +1432,7 @@ metamethod for the "newindex" event
             else {
                 $tm_obj = $self->t_get_tm_by_obj( $t, TMS->TM_INDEX );
                 if ( $tm_obj->is_nil ) {
-                    $self->g_simple_type_error( $t, "index" )
-                      ;    #my_path:5 g_simple_type_error?
+                    $self->g_simple_type_error( $t, "index" );
                 }
             }
 
@@ -1390,7 +1442,7 @@ metamethod for the "newindex" event
             }
             $t = $tm_obj;
         }
-        $self->g_run_error('loop in gettable');    #my_path:6 g_run_error?
+        $self->g_run_error('loop in gettable');
     }
 
     method v_push_closure {
@@ -1417,7 +1469,7 @@ metamethod for the "newindex" event
         die "#TODO";
     }
 
-    method tms2op (Int $op) {                                   #$op=>TMS
+    method tms2op (Int $op) {            #$op=>TMS
         given ($op) {
             when ( TMS->TM_ADD . '' ) { return LuaOp->LUA_OPADD; }
             when ( TMS->TM_SUB . '' ) { return LuaOp->LUA_OPSUB; }
@@ -1612,7 +1664,7 @@ metamethod for the "newindex" event
 
     method g_run_error (Str $msg) {
         $self->add_info($msg);
-        $self->g_error_msg();    #my_path:8
+        $self->g_error_msg();
     }
 
     method g_error_msg {
@@ -1629,7 +1681,7 @@ metamethod for the "newindex" event
             $below->value( $err_func->value );
             $self->incr_top();
 
-            $self->d_call( $below, 1, 0 );    #my_path:9
+            $self->d_call( $below, 1, 0 );
         }
     }
 
@@ -1662,7 +1714,7 @@ metamethod for the "newindex" event
 
     method g_simple_type_error (VM::Object $o, Str $op) {
         my $t = $self->obj_type_name($o);
-        $self->g_run_error("attempt to {$op} a {$t} value");    #my_path:7
+        $self->g_run_error("attempt to {$op} a {$t} value");
     }
 
     method g_type_error {

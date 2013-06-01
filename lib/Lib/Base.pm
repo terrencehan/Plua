@@ -139,9 +139,9 @@ class Lib::Base {
         #set global _G
         $lua->push_global_table();
         $lua->push_global_table();
-        $lua->set_fileld(-2, "_G"); #my_path:0
+        $lua->set_field(-2, "_G");
 
-        #open lib into blobal lib
+        #open lib into global lib
         $lua->l_set_funcs(\@define, 0);
 
         $lua->push_string(-2, "_VERSION");
