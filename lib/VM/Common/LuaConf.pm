@@ -14,6 +14,7 @@ class VM::Common::LuaConf {
     $h{LUAI_FIRSTPSEUDOIDX} = -$h{LUAI_MAXSTACK} - 1000;           #for registry
     $h{LUA_SIGNATURE}       = pack "C*", 0x1b, 0x4c, 0x75, 0x61;   #"\u001bLua";
     $h{LUA_DIRSEP}          = '/';                                 #TODO
+    $h{MAXTAGLOOP}          = 100;
 
     for ( keys %h ) {
         class_has $_ => (
