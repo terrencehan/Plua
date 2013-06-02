@@ -20,6 +20,7 @@ class VM::State extends VM::Object {
     use VM::Object::Nil;
     use VM::Object::Proto;
     use VM::Object::LClosure;
+    use aliased 'Common::NameFuncPair';
     use aliased 'VM::Util';
     use aliased 'VM::OpCode';
     use aliased 'VM::CallStatus';
@@ -161,7 +162,7 @@ class VM::State extends VM::Object {
 
     method init_registry {
         $self->g->registy->set_int( LuaDef->LUA_RIDX_MAINTHREAD, $self );
-        $self->g->registy->set_int( LuaDef->LUA_RIDX_MAINTHREAD,
+        $self->g->registy->set_int( LuaDef->LUA_RIDX_GLOBALS,
             new VM::Object::Table );
     }
 
@@ -288,7 +289,7 @@ class VM::State extends VM::Object {
         $self->api->call_k( $num_args, $num_results );
     }
 
-    method call_k (Int $num_args, Int $num_results, Int $context, CodeRef |Undef $continue_func) { #LuaAPI
+    method call_k (Int $num_args, Int $num_results, Int $context, CodeRef|Undef $continue_func) { #LuaAPI
         Util->api_check(
             !defined($continue_func) || !$self->ci->is_lua,
             "cannot use continuations inside hooks"
@@ -716,8 +717,8 @@ Pushes a copy of the element at the given index onto the stack.
         die "#TODO";
     }
 
-    method pop {                     #LuaAPI
-        die "#TODO";
+    method pop (Int $n) {                     #LuaAPI
+        $self->api->set_top( -$n - 1 );
     }
 
     method get_meta_table {          #LuaAPI
@@ -1196,7 +1197,17 @@ Pushes a copy of the element at the given index onto the stack.
     }
 
     method l_open_libs {
-        die "#TODO";
+        my @define = (
+            new NameFuncPair(
+                name => Lib::Base->LIB_NAME,
+                sub { Lib::Base->open_lib(@_); }
+            ),
+        );
+        for my $pair (@define) {
+            $self->l_require_f( $pair->name, $pair->func, 1 );
+            $self->api->pop(1);
+        }
+
     }
 
     method l_require_f {
