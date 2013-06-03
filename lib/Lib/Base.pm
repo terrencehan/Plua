@@ -7,6 +7,7 @@ class Lib::Base {
 
     use MooseX::ClassAttribute;
     use aliased 'Common::NameFuncPair';
+    use aliased 'VM::Common::LuaDef';
 
     class_has 'LIB_NAME' => (
         is      => 'ro',
@@ -139,12 +140,13 @@ class Lib::Base {
         #set global _G
         $lua->push_global_table();
         $lua->push_global_table();
-        $lua->set_field(-2, "_G");
+        $lua->set_field( -2, "_G" );
 
         #open lib into global lib
-        $lua->l_set_funcs(\@define, 0);
+        $lua->l_set_funcs( \@define, 0 );
 
-        $lua->push_string(-2, "_VERSION");
+        $lua->push_string( LuaDef->LUA_VERSION );
+        $lua->set_field( -2, "_VERSION" );
 
         return 1;
     }
