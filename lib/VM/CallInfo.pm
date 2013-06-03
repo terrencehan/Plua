@@ -57,7 +57,8 @@ class VM::CallInfo {
     );
 
     method is_lua {
-        return ( $self->call_status & VM::CallStatus->CIST_LUA ) != 0;
+        my $status = defined( $self->call_status ) ? $self->call_status : 0;
+        return ( $status & VM::CallStatus->CIST_LUA ) != 0;
     }
 
     method current_lua_func {    #get
