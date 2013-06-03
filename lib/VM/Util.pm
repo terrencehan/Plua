@@ -198,7 +198,7 @@ class VM::Util {
         assert(
             $class,
             $n < ( $lua->top->index - $lua->ci->func->index ),
-            "not enough lemets in the stack"
+            "not enough elems in the stack"
         );
     }
 
