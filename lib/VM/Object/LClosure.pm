@@ -15,7 +15,7 @@ class VM::Object::LClosure with VM::Object::Closure extends VM::Object{
         $self->is_clousre(1);
         $self->type( VM::Common::LuaType->LUA_TFUNCTION );
         $self->closure_type( VM::Common::ClosureType->LUA );
-        for ( @$self->proto ) {
+        for ( @{$self->proto->upvalues} ) {
             push $self->upvals, undef;
         }
     }
