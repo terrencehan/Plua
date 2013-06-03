@@ -21,6 +21,7 @@ class VM::Common::LuaType {
         LUA_TUSERDATA
         LUA_TTHREAD
 
+        LUA_TUINT64
         NUMTAGS
 
         LUA_TPROTO
