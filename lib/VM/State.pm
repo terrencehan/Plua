@@ -16,10 +16,14 @@ class VM::State extends VM::Object {
     use VM::LoadInfo;
     use VM::Undump;
     use VM::File;
+    use VM::CallS;
+    use VM::ExecuteEnvironment;
     use VM::LoadParameter;
     use VM::Object::Nil;
     use VM::Object::Proto;
     use VM::Object::LClosure;
+    use VM::Object::PClosure;
+    use Lib::Base;
     use aliased 'Common::NameFuncPair';
     use aliased 'VM::Util';
     use aliased 'VM::OpCode';
@@ -186,7 +190,7 @@ class VM::State extends VM::Object {
         $self->base_ci( new VM::CallInfo );
         $self->base_ci->previous(undef);
         $self->base_ci->next(undef);
-        $self->base_ci->func( $self->top );
+        $self->base_ci->func( $self->top->clone );
         $self->top->value_inc( new VM::Object::Nil )
           ;                   #`function' entry for this `ci'
         $self->base_ci->top( $self->top + LuaDef->LUA_MINSTACK );
@@ -244,7 +248,7 @@ class VM::State extends VM::Object {
             scalar @{ $cl->upvals } == scalar @{ $cl->proto->upvalues } );
 
         ## initialize upvalues
-        for ( my $i = 0 ; $i < scalar @{ $proto->upvals } ; ++$i ) {
+        for ( my $i = 0 ; $i < scalar @{ $proto->upvalues } ; ++$i ) {
             $cl->upvals->[$i] = new VM::Object::Upvalue;
         }
 
@@ -286,7 +290,7 @@ class VM::State extends VM::Object {
     }
 
     method call (Int $num_args, Int $num_results) {           #LuaAPI
-        $self->api->call_k( $num_args, $num_results );
+        $self->api->call_k( $num_args, $num_results, 0, undef );
     }
 
     method call_k (Int $num_args, Int $num_results, Int $context, CodeRef|Undef $continue_func) { #LuaAPI
@@ -296,7 +300,7 @@ class VM::State extends VM::Object {
         );
         Util->api_check_num_elems( $self, $num_args + 1 );
         Util->api_check(
-            self->status == ThreadStatus->LUA_OK,
+            $self->status == ThreadStatus->LUA_OK,
             'cannot do calls on non-normal thread'
         );
         $self->check_results( $num_args, $num_results );
@@ -318,8 +322,9 @@ class VM::State extends VM::Object {
         $self->adjust_results($num_results);
     }
 
-    method f_call {
-        die "#TODO";
+    method f_call ($ud) {
+        my $c = $ud;    #VM::CallS
+        $self->d_call( $c->func, $c->num_results, 0 );
     }
 
     method check_results (Int $num_args, Int $num_results ) {
@@ -331,12 +336,20 @@ class VM::State extends VM::Object {
         );
     }
 
+    method adjust_results (Int $num_results) {
+        if (   $num_results == LuaDef->LUA_MULTRET
+            && $self->ci->top->index < $self->top->index )
+        {
+            $self->ci->top( $self->top->clone );
+        }
+    }
+
     method p_call (Int $num_args, Int $num_results, Int $err_func) {    #LuaAPI
         return $self->api->p_call_k( $num_args, $num_results, $err_func, 0,
             undef );
     }
 
-    method p_call_k (Int $num_args, Int $num_results, Int $err_func, Int $context, CodeRef $continue_func) { #LuaAPI
+    method p_call_k (Int $num_args, Int $num_results, Int $err_func, Int $context, CodeRef|Undef $continue_func) { #LuaAPI
         Util->api_check(
             !defined($continue_func) || !$self->ci->is_lua,
             "cannot use continuations inside hooks"
@@ -362,20 +375,22 @@ class VM::State extends VM::Object {
 
         my $status;      #VM::Common::ThreadStatus
         my $c = new VM::CallS;
-        $c->func = $self->top - ( $num_args + 1 );
+        $c->func( $self->top - ( $num_args + 1 ) );
         if ( !defined($continue_func) || $self->num_none_yieldable > 0 )
         {                #no continuatoin or no yieldable?
             $c->num_results($num_results);
-            $status = $self->d_p_call( $self->f_call, $c, $c->func, $func );
+            $status =
+              $self->d_p_call( sub { $self->f_call(@_); }, $c, $c->func,
+                $func );
         }
         else {
             my $ci = $self->ci;
             $ci->continue_func($continue_func);
             $ci->context($context);
-            $ci->extra( $c->func );
+            $ci->extra( $c->func->clone );
             $ci->old_allow_hook( $self->allow_hook );
             $ci->old_err_func( $self->err_func );
-            $self->err_func($func);
+            $self->err_func( $func->clone );
             $ci->call_status( $ci->call_status | CallStatus->CIST_YPCALL );
             $self->d_call( $c->func, $num_results, 1 );
             $ci->call_status( $ci->call_status & ( ~CallStatus->CIST_YPCALL ) );
@@ -422,23 +437,46 @@ class VM::State extends VM::Object {
         die "#TODO";
     }
 
-    method abs_index {           #LuaAPI
-        die "#TODO";
+    method abs_index (Int $index) {           #LuaAPI
+        return ( $index > 0 || $index <= LuaDef->LUA_REGISTRYINDEX )
+          ? $index
+          : $self->top->index - $self->ci->func->index + $index;
     }
 
     method get_top {             #LuaAPI
         return $self->top->index - ( $self->ci->func->index + 1 );
     }
 
-    method set_top {             #LuaAPI
-        die "#TODO";
+    method set_top (Int $index) {             #LuaAPI
+        my $func = $self->ci->func->clone;
+        if ( $index >= 0 ) {
+            while ( $self->top->index < ( $func->index + 1 ) + $index ) {
+                $self->top->value_inc( new VM::Object::Nil );
+            }
+            $self->top( $func + 1 + $index );
+        }
+        else {
+            Util->api_check(
+                -( $index + 1 ) <= ( $self->top->index - ( $func->index + 1 ) ),
+                'invalid new top'
+            );
+            $self->top( $self->top + $index + 1 );
+        }
     }
 
-    method remove {              #LuaAPI
-        die "#TODO";
+    method remove (Int $index) {    #LuaAPI
+        my $addr1;    #VM::StkId
+        if ( !$self->index2addr( $index, \$addr1 ) ) {
+            Util->invalid_index;
+        }
+        my $addr2 = $addr1 + 1;
+        while ( $addr2->index < $self->top->index ) {
+            $addr1->value_inc( $addr2->value_inc );
+        }
+        $self->top->index( $self->top->index - 1 );
     }
 
-    method insert {              #LuaAPI
+    method insert {      #LuaAPI
         die "#TODO";
     }
 
@@ -446,48 +484,49 @@ class VM::State extends VM::Object {
         die "#TODO";
     }
 
-    method replace {             #LuaAPI
+    method replace {     #LuaAPI
         die "#TODO";
     }
 
-    method copy {                #LuaAPI
+    method copy {        #LuaAPI
         die "#TODO";
     }
 
-    method x_move {              #LuaAPI
+    method x_move {      #LuaAPI
         die "#TODO";
     }
 
-    method error {               #LuaAPI
+    method error {       #LuaAPI
         die "#TODO";
     }
 
-    method upvalue_index {       #LuaAPI
+    method upvalue_index {    #LuaAPI
         die "#TODO";
     }
 
-    method get_upvalue {         #LuaAPI
+    method get_upvalue {      #LuaAPI
         die "#TODO";
     }
 
-    method set_upvalue {         #LuaAPI
+    method set_upvalue {      #LuaAPI
         die "#TODO";
     }
 
-    method create_table {        #LuaAPI
+    method create_table {     #LuaAPI
+        $self->top->value( new VM::Object::Table );
+        $self->api_incr_top();
+    }
+
+    method new_table {        #LuaAPI
+        $self->api->create_table( 0, 0 );
+    }
+
+    method next {             #LuaAPI
         die "#TODO";
     }
 
-    method new_table {           #LuaAPI
-        die "#TODO";
-    }
-
-    method next {                #LuaAPI
-        die "#TODO";
-    }
-
-    method raw_get_i (Int $index, Int $n) {           #LuaAPI
-        my $addr;             #VM::StkId
+    method raw_get_i (Int $index, Int $n) {        #LuaAPI
+        my $addr;          #VM::StkId
         if ( !$self->index2addr( $index, \$addr ) ) {
             Util->api_check( 0, "table expected" );
         }
@@ -520,8 +559,16 @@ given index. As in Lua,  this function may trigger a metamethod for
 the "index" event
 =cut
 
-    method get_field {                        #LuaAPI
-        die "#TODO";
+    method get_field (Int $index, Str $key) {    #LuaAPI
+        my $addr;      #VM::StkId
+        if ( !$self->index2addr( $index, \$addr ) ) {
+            Util->invalid_index;
+        }
+        $self->top->value( new VM::Object::String( value => $key ) );
+        my $below = $self->top->clone;
+        $self->api_incr_top;
+        $self->v_get_table( $addr->value, $below->value, $below );
+
     }
 
 =item set_field
@@ -663,7 +710,7 @@ metamethod for the "newindex" event
 
     method push_perl_function (CodeRef $f) {    #LuaAPI
 
-        $self->api->push_perl_closure( $f, $0 );
+        $self->api->push_perl_closure( $f, 0 );
     }
 
     method push_perl_closure (CodeRef $f, Int $n) {     #LuaAPI
@@ -729,12 +776,20 @@ Pushes a copy of the element at the given index onto the stack.
         die "#TODO";
     }
 
-    method get_global {              #LuaAPI
-        die "#TODO";
+    method get_global (Str $name) {              #LuaAPI
+        my $gt    = $self->g->registy->get_int( LuaDef->LUA_RIDX_GLOBALS );
+        my $s     = new VM::Object::String( value => $name );
+        my $below = $self->top->clone;
+        $self->top->value_inc($s);
+        $self->v_get_table( $gt, $s, $below );
     }
 
-    method set_global {              #LuaAPI
-        die "#TODO";
+    method set_global (Str $name) {              #LuaAPI
+        my $gt = $self->g->registy->get_int( LuaDef->LUA_RIDX_GLOBALS );
+        my $s = new VM::Object::String( value => $name );
+        $self->top->value_inc($s);
+        $self->v_set_table( $gt, $s, $self->top - 2 );
+        $self->top( $self->top - 2 );
     }
 
     method to_string (Int $index) {               #LuaAPI
@@ -852,6 +907,7 @@ Pushes a copy of the element at the given index onto the stack.
         my $res                = ThreadStatus->LUA_OK;
         eval { $func->($ud); };
         if ($@) {
+            die $@;
             $self->num_perl_calls($old_num_perl_calls);
             $res = $@->err_code;
         }
@@ -860,6 +916,7 @@ Pushes a copy of the element at the given index onto the stack.
     }
 
     method set_error_obj (Int $err_code, VM::StkId $old_top) {
+        $old_top = $old_top->clone;
         given ($err_code) {
             when ( ThreadStatus->LUA_ERRMEM . '' ) {
                 $old_top->value(
@@ -878,7 +935,8 @@ Pushes a copy of the element at the given index onto the stack.
     }
 
     method d_p_call (CodeRef $func, $ud, VM::StkId $old_top, Int $err_func) {
-        my $old_ci                = $self->CI;
+        $old_top = $old_top->clone;
+        my $old_ci                = $self->ci;
         my $old_allow_hook        = $self->allow_hook;
         my $old_num_non_yieldable = $self->num_none_yieldable;
         my $old_err_func          = $self->err_func;
@@ -897,6 +955,7 @@ Pushes a copy of the element at the given index onto the stack.
     }
 
     method d_call (VM::StkId $func, Int $n_results, Bool $allow_yield) {
+        $func = $func->clone;
         if ( $self->num_perl_calls( $self->num_perl_calls + 1 ) >=
             LuaLimits->LUAI_MAXCCALLS )
         {
@@ -930,7 +989,8 @@ Pushes a copy of the element at the given index onto the stack.
                         #if $func is a perl function, execute it and return true
                         #else prepare for Lua call, return false
 
-        my $cl = Util->as( $func->value );
+        $func = $func->clone;
+        my $cl = Util->as( $func->value, "VM::Object::LClosure" );
         if ( defined($cl) ) {
             my $p = $cl->proto;
 
@@ -948,14 +1008,14 @@ Pushes a copy of the element at the given index onto the stack.
 
             $self->ci( $self->extend_ci );
             $self->ci->num_results($n_results);
-            $self->ci->func($func);
-            $self->ci->base($stack_base);
+            $self->ci->func( $func->clone );
+            $self->ci->base( $stack_base->clone );
             $self->ci->top( $stack_base + $p->max_stack_size );
             $self->ci->saved_pc(
                 new VM::Pointer( list => $p->code, index => 0 ) );
             $self->ci->call_status( CallStatus->CIST_LUA );
 
-            $self->top( $self->ci->top );
+            $self->top( $self->ci->top->clone );
 
             return 0;    #false
         }
@@ -965,7 +1025,7 @@ Pushes a copy of the element at the given index onto the stack.
 
             $self->ci( $self->extend_ci );
             $self->ci->num_results($n_results);
-            $self->ci->func($func);
+            $self->ci->func( $func->clone );
             $self->ci->top( $self->top + LuaDef->LUA_MINSTACK );
             $self->ci->call_status( CallStatus->CIST_NONE );
 
@@ -987,8 +1047,9 @@ Pushes a copy of the element at the given index onto the stack.
     }
 
     method d_pos_call (VM::StkId $first_result) {
-        my $ci     = $self->ci;          #VM::CallInfo
-        my $res    = $ci->func;          #VM::StkId
+        $first_result = $first_result->clone;
+        my $ci     = $self->ci;           #VM::CallInfo
+        my $res    = $ci->func->clone;    #VM::StkId
         my $wanted = $ci->num_results;
 
         $self->ci( $ci->previous );
@@ -1000,7 +1061,7 @@ Pushes a copy of the element at the given index onto the stack.
             $res->value_inc( new VM::Object::Nil );
         }
 
-        $self->top($res);
+        $self->top( $res->clone );
         return ( $wanted - LuaDef->LUA_MULTRET );
     }
 
@@ -1012,12 +1073,38 @@ Pushes a copy of the element at the given index onto the stack.
         return $ci;
     }
 
-    method adjust_varargs {
-        die "#TODO";
+    method adjust_varargs (VM::Object::Proto $p, Int $actual) {
+        my $num_fix_args = $p->num_params;
+        Util->assert( $actual >= $num_fix_args,
+            "AdjustVarargs (actual >= num_fix_args) is false" );
+
+        my $fixed_arg  = $self->top - $actual; #first fixed argument
+        my $stack_base = $self->top->clone;    #final position of first argument
+        for ( 1 .. $num_fix_args ) {
+            $self->top->value_inc( $fixed_arg->value );
+            $fixed_arg->value_inc( new VM::Object::Nil );
+        }
+        return $stack_base;
     }
 
-    method try_func_tm {
-        die "#TODO";
+    method try_func_tm (VM::StkId $func) {
+        $func = $func->clone;
+        my $tm_obj = $self->t_get_tm_by_obj( $func->value, TMS->TM_CALL );
+        if ( !$tm_obj->is_function ) {
+            $self->g_type_error( $func, "call" );
+        }
+
+        #open a hole inside the stack at `func'
+        my $q1 = $self->top - 1;
+        my $q2 = $self->top->clone;
+        while ( $q2->index > $func->index ) {
+            $q2->value( $q1->value );
+            $q1->index( $q1->index - 1 );
+            $q2->index( $q2->index - 1 );
+        }
+        $self->incr_top;
+        $func->value($tm_obj);
+        return $func;
     }
 
     #end of DO part
@@ -1137,7 +1224,7 @@ Pushes a copy of the element at the given index onto the stack.
 
     method l_load_bytes ($bytes, Str $name) {
         my $load_info = new VM::BytesLoadInfo( bytes => $bytes );
-        return $self->load( $load_info, $name, undef );
+        return $self->load( $load_info, $name, 'binary' );
     }
 
     method err_file {
@@ -1145,7 +1232,7 @@ Pushes a copy of the element at the given index onto the stack.
     }
 
     method l_load_file (Str $filename) {
-        return $self->l_load_file_x( $filename, undef );
+        return $self->l_load_file_x( $filename, 'binary' );    #TODO 'binary'
     }
 
     method l_load_file_x (Str|Undef $filename, Str|Undef $mode ) {
@@ -1198,9 +1285,9 @@ Pushes a copy of the element at the given index onto the stack.
 
     method l_open_libs {
         my @define = (
-            new NameFuncPair(
+            NameFuncPair->new(
                 name => Lib::Base->LIB_NAME,
-                sub { Lib::Base->open_lib(@_); }
+                func => sub { Lib::Base->open_lib(@_); }
             ),
         );
         for my $pair (@define) {
@@ -1210,12 +1297,33 @@ Pushes a copy of the element at the given index onto the stack.
 
     }
 
-    method l_require_f {
-        die "#TODO";
+    method l_require_f (Str $module_name, CodeRef $open_func, Bool $global) {
+        $self->api->push_perl_function($open_func);
+        $self->api->push_string($module_name);
+        $self->api->call( 1, 1 );
+        $self->l_get_sub_table( LuaDef->LUA_REGISTRYINDEX, "_LOADED" );
+        $self->api->push_value(-2);
+        $self->api->set_field( -2, $module_name );
+        $self->api->pop(1);
+        if ($global) {
+            $self->api->push_value(-1);
+            $self->api->set_global($module_name);
+        }
     }
 
-    method l_get_sub_table {
-        die "#TODO";
+    method l_get_sub_table (Int $index, Str $f_name) {
+        $self->api->get_field( $index, $f_name );
+        if ( $self->api->api_is_table(-1) ) {
+            return 1;
+        }
+        else {
+            $self->api->pop(1);
+            $index = $self->api->abs_index($index);
+            $self->api->new_table();
+            $self->api->push_value(-1);
+            $self->api->set_field( $index, $f_name );
+            return 0;
+        }
     }
 
     method l_new_lib_table {
@@ -1278,6 +1386,7 @@ These values are popped from the stack after the registration.
     }
 
     method f_close (VM::StkId $level) {
+        $level = $level->clone;
         my $node = $self->open_upval->[0];
         while ( defined($node) ) {
             my $upval = $node->value;
@@ -1301,69 +1410,89 @@ These values are popped from the stack after the registration.
     #VM part
 
     method v_execute {
-        die "#TODO";
-        my $env;       #VM::ExecuteEnvironment
-        my $ci = $self->ci;
+        my $env = new VM::ExecuteEnvironment;
+        my $ci  = $self->ci;
       newframe:
         my $cl = Util->as( $ci->func->value, 'VM::Object::LClosure' );
         $env->k( new VM::StkId( list => $cl->proto->k, index => 0 ) );
-        $env->base( $ci->base );
+        $env->base( $ci->base->clone );
 
         while (1) {
             my $i = $ci->saved_pc->value_inc;    #VM::Instruction
-            $env->i($i);
+            $env->i( $i->clone );
             my $ra = $env->RA;
             $self->dump_stack( $env->base->index );
 
             given ( $i->GET_OPCODE() ) {
-                when ( Opcode->OP_MOVE . '' ) {
+                when ( OpCode->OP_MOVE . '' ) {
                     my $rb = $env->RB;
                     $ra->value( $rb->value );
                     break;
                 }
-                when ( Opcode->OP_LOADK . '' ) {
+                when ( OpCode->OP_LOADK . '' ) {
                     my $rb = $env->k + $i->GETARG_Bx();    #VM::StkId
                     $ra->value( $rb->value );
                     break;
                 }
-                when ( Opcode->OP_LOADKX . '' )   { die "#TODO"; }
-                when ( Opcode->OP_LOADBOOL . '' ) { die "#TODO"; }
-                when ( Opcode->OP_LOADNIL . '' )  { die "#TODO"; }
-                when ( Opcode->OP_GETUPVAL . '' ) { die "#TODO"; }
-                when ( Opcode->OP_GETTABUP . '' ) { die "#TODO"; }
-                when ( Opcode->OP_GETTABLE . '' ) { die "#TODO"; }
-                when ( Opcode->OP_SETTABUP . '' ) { die "#TODO"; }
-                when ( Opcode->OP_SETUPVAL . '' ) { die "#TODO"; }
-                when ( Opcode->OP_SETTABLE . '' ) { die "#TODO"; }
-                when ( Opcode->OP_NEWTABLE . '' ) { die "#TODO"; }
-                when ( Opcode->OP_SELF . '' )     { die "#TODO"; }
-                when ( Opcode->OP_ADD . '' )      { die "#TODO"; }
-                when ( Opcode->OP_SUB . '' )      { die "#TODO"; }
-                when ( Opcode->OP_MUL . '' )      { die "#TODO"; }
-                when ( Opcode->OP_DIV . '' )      { die "#TODO"; }
-                when ( Opcode->OP_MOD . '' )      { die "#TODO"; }
-                when ( Opcode->OP_POW . '' )      { die "#TODO"; }
-                when ( Opcode->OP_UNM . '' )      { die "#TODO"; }
-                when ( Opcode->OP_NOT . '' )      { die "#TODO"; }
-                when ( Opcode->OP_LEN . '' )      { die "#TODO"; }
-                when ( Opcode->OP_CONCAT . '' )   { die "#TODO"; }
-                when ( Opcode->OP_JMP . '' )      { die "#TODO"; }
-                when ( Opcode->OP_EQ . '' )       { die "#TODO"; }
-                when ( Opcode->OP_LT . '' )       { die "#TODO"; }
-                when ( Opcode->OP_LE . '' )       { die "#TODO"; }
-                when ( Opcode->OP_TEST . '' )     { die "#TODO"; }
-                when ( Opcode->OP_TESTSET . '' )  { die "#TODO"; }
-                when ( Opcode->OP_CALL . '' )     { die "#TODO"; }
-                when ( Opcode->OP_TAILCALL . '' ) { die "#TODO"; }
-                when ( Opcode->OP_RETURN . '' )   { die "#TODO"; }
-                when ( Opcode->OP_FORLOOP . '' )  { die "#TODO"; }
-                when ( Opcode->OP_FORPREP . '' )  { die "#TODO"; }
-                when ( Opcode->OP_TFORCALL . '' ) { die "#TODO"; }
-                when ( Opcode->OP_TFORLOOP . '' ) { die "#TODO"; }
-                when ( Opcode->OP_SETLIST . '' )  { die "#TODO"; }
-                when ( Opcode->OP_CLOSURE . '' )  { die "#TODO"; }
-                when ( Opcode->OP_VARARG . '' )   { die "#TODO"; }
-                when ( Opcode->OP_EXTRAARG . '' ) { die "#TODO"; }
+                when ( OpCode->OP_LOADKX . '' )   { die "#TODO"; }
+                when ( OpCode->OP_LOADBOOL . '' ) { die "#TODO"; }
+                when ( OpCode->OP_LOADNIL . '' )  { die "#TODO"; }
+                when ( OpCode->OP_GETUPVAL . '' ) { die "#TODO"; }
+                when ( OpCode->OP_GETTABUP . '' ) { die "#TODO"; }
+                when ( OpCode->OP_GETTABLE . '' ) { die "#TODO"; }
+                when ( OpCode->OP_SETTABUP . '' ) { die "#TODO"; }
+                when ( OpCode->OP_SETUPVAL . '' ) { die "#TODO"; }
+                when ( OpCode->OP_SETTABLE . '' ) { die "#TODO"; }
+                when ( OpCode->OP_NEWTABLE . '' ) { die "#TODO"; }
+                when ( OpCode->OP_SELF . '' )     { die "#TODO"; }
+                when ( OpCode->OP_ADD . '' )      { die "#TODO"; }
+                when ( OpCode->OP_SUB . '' )      { die "#TODO"; }
+                when ( OpCode->OP_MUL . '' )      { die "#TODO"; }
+                when ( OpCode->OP_DIV . '' )      { die "#TODO"; }
+                when ( OpCode->OP_MOD . '' )      { die "#TODO"; }
+                when ( OpCode->OP_POW . '' )      { die "#TODO"; }
+                when ( OpCode->OP_UNM . '' )      { die "#TODO"; }
+                when ( OpCode->OP_NOT . '' )      { die "#TODO"; }
+                when ( OpCode->OP_LEN . '' )      { die "#TODO"; }
+                when ( OpCode->OP_CONCAT . '' )   { die "#TODO"; }
+                when ( OpCode->OP_JMP . '' )      { die "#TODO"; }
+                when ( OpCode->OP_EQ . '' )       { die "#TODO"; }
+                when ( OpCode->OP_LT . '' )       { die "#TODO"; }
+                when ( OpCode->OP_LE . '' )       { die "#TODO"; }
+                when ( OpCode->OP_TEST . '' )     { die "#TODO"; }
+                when ( OpCode->OP_TESTSET . '' )  { die "#TODO"; }
+                when ( OpCode->OP_CALL . '' )     { die "#TODO"; }
+                when ( OpCode->OP_TAILCALL . '' ) { die "#TODO"; }
+                when ( OpCode->OP_RETURN . '' ) {
+                    my $b = $i->GETARG_B();
+                    if ( $b != 0 ) {
+                        $self->top( $ra + $b - 1 );
+                    }
+                    if ( @{ $cl->proto->p } > 0 ) {
+                        $self->f_close( $env->base );
+                    }
+                    $b = $self->d_pos_call($ra);
+                    if ( ( $ci->call_status & CallStatus->CIST_REENTRY ) == 0 )
+                    {
+
+                        return;
+                    }
+                    else {
+                        $ci = $self->ci;
+                        if ( $b != 0 ) {
+                            $self->top( $ci->top->clone );
+                            goto 'newframe';
+                        }
+                    }
+                }
+                when ( OpCode->OP_FORLOOP . '' )  { die "#TODO"; }
+                when ( OpCode->OP_FORPREP . '' )  { die "#TODO"; }
+                when ( OpCode->OP_TFORCALL . '' ) { die "#TODO"; }
+                when ( OpCode->OP_TFORLOOP . '' ) { die "#TODO"; }
+                when ( OpCode->OP_SETLIST . '' )  { die "#TODO"; }
+                when ( OpCode->OP_CLOSURE . '' )  { die "#TODO"; }
+                when ( OpCode->OP_VARARG . '' )   { die "#TODO"; }
+                when ( OpCode->OP_EXTRAARG . '' ) { die "#TODO"; }
                 default                           { die "#TODO"; }
             }
         }
@@ -1374,7 +1503,7 @@ These values are popped from the stack after the registration.
         die "#TODO";
     }
 
-    method fast_tm (VM::Object::Table $et, Int $tm) {    #$tm=>TMS
+    method fast_tm (VM::Object::Table|Undef $et, Int $tm) {    #$tm=>TMS
         if ( !defined($et) ) {
             return undef;
         }
@@ -1387,6 +1516,7 @@ These values are popped from the stack after the registration.
     }
 
     method v_get_table (VM::Object $t, VM::Object $key, VM::StkId $val) {
+        $val = $val->clone;
         for ( 1 .. LuaConf->MAXTAGLOOP ) {
             my $tm_obj;    #VM::Object;
             my $tbl = Util->as( $t, 'VM::Object::Table' );
@@ -1421,9 +1551,10 @@ These values are popped from the stack after the registration.
     }
 
     method v_set_table (VM::Object $t, VM::Object $key, VM::StkId $val) {
+        $val = $val->clone;
         for ( 1 .. LuaConf->MAXTAGLOOP ) {
             my $tm_obj;    #VM::Object
-            my $tbl = Util->( $t, "VM::Object::Table" );
+            my $tbl = Util->as( $t, "VM::Object::Table" );
             if ( defined($tbl) ) {
                 my $old_val = $tbl->get($key);
                 if ( !$old_val->is_nil ) {
@@ -1493,7 +1624,8 @@ These values are popped from the stack after the registration.
     }
 
     method call_tm ( VM::Object $f, VM::Object $p1, VM::Object $p2, VM::StkId $p3, Bool $has_res) {
-        my $func = $self->top;
+        $p3 = $p3->clone;
+        my $func = $self->top->clone;
         $self->top->value_inc($f);     #push function
         $self->top->value_inc($p1);    #push 1st argument
         $self->top->value_inc($p2);    #push 2nd argument
@@ -1512,6 +1644,9 @@ These values are popped from the stack after the registration.
     }
 
     method call_bin_tm (VM::StkId $p1, VM::StkId $p2, VM::StkId $res, Int $tm) { #$tm=>TMS
+        $p1  = $p1->clone;
+        $p2  = $p2->clone;
+        $res = $res->clone;
         my $tm_obj = $self->t_get_tm_by_obj( $p1->value, $tm );
         if ( $tm_obj->is_nil ) {
             $tm_obj = $self->t_get_tm_by_obj( $p1->value, $tm );
@@ -1526,6 +1661,9 @@ These values are popped from the stack after the registration.
 
     method v_arith (VM::StkId $ra, VM::StkId $rb, VM::StkId $rc, Int $op) { #$op=>TMS
 
+        $ra = $ra->clone;
+        $rb = $rb->clone;
+        $rc = $rc->clone;
         my $b = $self->v_to_number( $rb->value );
         my $c = $self->v_to_number( $rc->value );
         if ( defined($b) && defined($c) ) {
@@ -1622,7 +1760,7 @@ These values are popped from the stack after the registration.
                 break;
             }
             default {
-                $mt = $self->g->metatables->[ $o->type ];
+                $mt = $self->g->meta_tables->[ $o->type ];
                 break;
             }
         }
@@ -1728,8 +1866,28 @@ These values are popped from the stack after the registration.
         $self->g_run_error("attempt to {$op} a {$t} value");
     }
 
-    method g_type_error {
-        die "#TODO";
+    method g_type_error (VM::StkId $o, Str $op) {
+        $o = $o->clone;
+        my $ci = $self->ci;
+        my $name;
+        my $kind;
+        my $t = $self->obj_type_name( $o->value );
+        if ( $ci->is_lua ) {
+            $kind = $self->get_upvalue_name( $ci, $o, \$name );
+            if ( defined($kind) && $self->is_in_stack( $ci, $o ) ) {
+                my $lcl = Util->as( $ci->func->value, "VM::Object::LClosure" );
+                $kind = $self->get_obj_name( $lcl->proto, $ci->current_pc,
+                    ( $o->index - $ci->base->index ), \$name );
+            }
+        }
+        if ( defined($kind) ) {
+            $self->g_run_error(
+                "attempt to {$op} {$kind} '{$name}'(a {$t} value)");
+        }
+        else {
+            $self->g_run_error("attempt to {$op} a {$t} value");
+
+        }
     }
 
     method g_arith_error {
