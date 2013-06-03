@@ -27,10 +27,8 @@ class VM::GlobalState {
 
     has 'meta_tables' => (
         is      => 'rw',
-        isa     => 'VM::Object::Table',
-        default => sub {
-            new VM::Object::Table( array_size => LuaType->NUMTAGS );
-        },
+        isa     => 'ArrayRef[VM::Object::Table]',
+        default => sub { [] },
     );
 
     has 'man_thread' => (
