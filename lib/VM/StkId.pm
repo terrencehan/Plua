@@ -103,6 +103,10 @@ class VM::StkId {
             push $self->list, VM::Object::Nil->new();
         }
     }
+
+    method clone {
+        return VM::StkId->new( list => $self->list, index => $self->index );
+    }
 }
 
 {

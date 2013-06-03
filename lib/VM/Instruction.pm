@@ -16,6 +16,10 @@ class VM::Instruction {
         reader => 'to_uint',
     );
 
+    method clone {
+        return new VM::Instruction( value => $self->value );
+    }
+
     #class variable
     our $SIZE_C  = 9;
     our $SIZE_B  = 9;
@@ -70,7 +74,7 @@ class VM::Instruction {
         $r & ~$BITRK;
     }
 
-    sub MYK {   
+    sub MYK {
         if ( $_[0] eq "VM::Instruction" ) {
             shift;
         }
@@ -123,43 +127,43 @@ class VM::Instruction {
     method GETARG_Ax { $self->GETARG( $POS_Ax, $SIZE_Ax ); }
     method GETARG_sBx { $self->GETARG_Bx - $MAXfARG_sBx; }
 
-    method SETARG_A (Int $value){
-        $self->SETARG($value, $POS_A, $SIZE_A);
+    method SETARG_A (Int $value) {
+        $self->SETARG( $value, $POS_A, $SIZE_A );
     }
 
-    method SETARG_B (Int $value){
-        $self->SETARG($value, $POS_B, $SIZE_B);
+    method SETARG_B (Int $value) {
+        $self->SETARG( $value, $POS_B, $SIZE_B );
     }
 
-    method SETARG_C (Int $value){
-        $self->SETARG($value, $POS_C, $SIZE_C);
+    method SETARG_C (Int $value) {
+        $self->SETARG( $value, $POS_C, $SIZE_C );
     }
 
-    method SETARG_Bx (Int $value){
-        $self->SETARG($value, $POS_Bx, $SIZE_Bx);
+    method SETARG_Bx (Int $value) {
+        $self->SETARG( $value, $POS_Bx, $SIZE_Bx );
     }
 
-    method SETARG_Ax (Int $value){
-        $self->SETARG($value, $POS_Ax, $SIZE_Ax);
+    method SETARG_Ax (Int $value) {
+        $self->SETARG( $value, $POS_Ax, $SIZE_Ax );
     }
 
-    method SETARG_sBx (Int $value){
-        $self->SET_Bx($value+$MAXfARG_sBx);
+    method SETARG_sBx (Int $value) {
+        $self->SET_Bx( $value + $MAXfARG_sBx );
     }
 
     sub CreateABC {
         shift;
         my ( $op, $a, $b, $c ) = @_;
-        VM::Instruction->new(value=>
-            ( $op << $POS_OP ) | ( $a << $POS_A ) | ( $b << $POS_B ) |
+        VM::Instruction->new(
+            value => ( $op << $POS_OP ) | ( $a << $POS_A ) | ( $b << $POS_B ) |
               ( $c << $POS_C ) );
     }
 
     sub CreateABx {
         shift;
         my ( $op, $a, $bc ) = @_;
-        VM::Instruction->new(value=>
-            ( $op << $POS_OP ) | ( $a << $POS_A ) | ( $bc << $POS_Bx ) );
+        VM::Instruction->new( value => ( $op << $POS_OP ) | ( $a << $POS_A ) |
+              ( $bc << $POS_Bx ) );
     }
 
     sub CreateAx {

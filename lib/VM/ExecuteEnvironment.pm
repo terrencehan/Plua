@@ -20,8 +20,21 @@ class VM::ExecuteEnvironment {
         isa => 'VM::Instruction',
     );
 
-    method RA { return $self->base + $i->GETARG_A(); }
-    method RB { return $self->base + $i->GETARG_B(); }
+    method clone {
+        my $new_env = new VM::ExecuteEnvironment;
+        if(defined($self->k)){
+            $new_env->k($self->k->clone);
+        }
+        if(defined($self->base)){
+            $new_env->base($self->base->clone);
+        }
+        if(defined($self->i)){
+            $new_env->i($self->i->clone);
+        }
+        return $new_env;
+    }
+    method RA { return $self->base + $self->i->GETARG_A(); }
+    method RB { return $self->base + $self->i->GETARG_B(); }
 
     method RK (Int $x) {
         return Instruction->ISK($x)
