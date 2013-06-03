@@ -22,10 +22,11 @@ is LuaType->LUA_TTABLE,         5;
 is LuaType->LUA_TFUNCTION,      6;
 is LuaType->LUA_TUSERDATA,      7;
 is LuaType->LUA_TTHREAD,        8;
-is LuaType->NUMTAGS,            9;
-is LuaType->LUA_TPROTO,         10;
-is LuaType->LUA_TUPVAL,         11;
-is LuaType->LUA_TDEADKEY,       12;
+is LuaType->LUA_TUINT64,        9;
+is LuaType->NUMTAGS,            10;
+is LuaType->LUA_TPROTO,         11;
+is LuaType->LUA_TUPVAL,         12;
+is LuaType->LUA_TDEADKEY,       13;
 
 use aliased 'VM::Common::LuaOp';
 is LuaOp->LUA_OPADD, 0;
