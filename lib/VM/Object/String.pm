@@ -2,58 +2,63 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::String;
 
-class VM::Object::String extends VM::Object {
+#-BUILD (value => Str)
+use parent qw/VM::Object/;
 
-    #-BUILD (value => Str)
-    use VM::Common::LuaType;
+my @required = qw/value/;
 
-    use lib '../../';
-    has value => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
+use lib '../../';
+use VM::Common::LuaType;
 
-    method BUILD {
-        $self->is_string(1);
-        $self->type( VM::Common::LuaType->LUA_TSTRING );
+sub new {
+    my ( $class, @args ) = @_;
+    my $self = bless {@args}, $class;
+
+    $self->type( VM::Common::LuaType->LUA_TSTRING );
+    $self->is_string(1);
+    return $self;
+}
+
+sub value {
+    my ( $self, $val ) = @_;
+    if ( defined $val ) {
+        $self->is_false( !$val );
+        return $self->{value} = $val;
     }
-
-    override to_string {
-        return "[LuaString(" . $self->value . ")]";
+    else {
+        return $self->{value};
     }
 }
 
-{
-    #for overload
-    package VM::Object::String;
-    use overload '==' => \&myeq;
-    use overload '!=' => \&myneq;
-    use overload '""' => \&str;
+sub to_string {
+    my $self = shift;
+    return "[LuaString(" . $self->value . ")]";
+}
 
-    sub myeq {
-        my ( $one, $two ) = @_;
+use overload '==' => \&myeq;
+use overload '!=' => \&myneq;
+use overload '""' => \&str;
 
-        if ( not( ( defined $one ) and ( defined $two ) ) ) {
-            return 0;
-        }
+sub myeq {
+    my ( $one, $two ) = @_;
 
-        return $one->value eq $two->value;
+    if ( not( ( defined $one ) and ( defined $two ) ) ) {
+        return 0;
     }
 
-    sub myneq {
-        my ( $one, $two ) = @_;
-        return not( $one == $two );
-    }
+    return $one->value eq $two->value;
+}
 
-    sub str {
-        my $self = shift;
-        return $self->value;
-    }
+sub myneq {
+    my ( $one, $two ) = @_;
+    return not( $one == $two );
+}
 
-    1;
+sub str {
+    my $self = shift;
+    return $self->value;
 }
 
 1;

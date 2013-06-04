@@ -2,32 +2,30 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Common::ThreadStatus;
 
-class VM::Common::ThreadStatus {
-    use MooseX::ClassAttribute;
-
+BEGIN {
     my $count = -1;
     for (
         qw/
-		LUA_RESUME_ERROR 
-		LUA_OK			 
-		LUA_YIELD		 
-		LUA_ERRRUN		 
-		LUA_ERRSYNTAX	 
-		LUA_ERRMEM		 
-		LUA_ERRGCMM		 
-		LUA_ERRERR		 
+        LUA_RESUME_ERROR
+        LUA_OK
+        LUA_YIELD
+        LUA_ERRRUN
+        LUA_ERRSYNTAX
+        LUA_ERRMEM
+        LUA_ERRGCMM
+        LUA_ERRERR
 
-		LUA_ERRFILE		 
+        LUA_ERRFILE
         /
       )
     {
-        class_has $_ => (
-            is      => 'ro',
-            isa     => 'Int',
-            default => $count++,
-        );
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $n = $count++;
+        *t = sub {
+            return $n;
+        };
     }
 }
 

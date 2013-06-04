@@ -2,12 +2,10 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Common::LuaDef;
+use aliased 'VM::Common::LuaConf';
 
-class VM::Common::LuaDef {
-    use MooseX::ClassAttribute;
-    use aliased 'VM::Common::LuaConf';
-
+BEGIN {
     my %h;
     $h{LUA_MINSTACK} = 20;
 
@@ -32,11 +30,12 @@ class VM::Common::LuaDef {
     $h{LUA_ENV} = "_ENV";
 
     for ( keys %h ) {
-        class_has $_ => (
-            is      => 'ro',
-            default => $h{$_},
-        );
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $res = $h{$_};
+        *t = sub {
+            $res;
+        };
     }
-}
 
+}
 1;

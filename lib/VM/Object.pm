@@ -2,13 +2,20 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
 use v5.10;
 
-class VM::Object {
-    use VM::Common::LuaType;
+package VM::Object;
 
-    for (
+use VM::Common::LuaType;
+
+sub new {
+    my $class = shift;
+    bless { type => VM::Common::LuaType->LUA_TNONE }, $class;
+}
+
+BEGIN {
+    my $class = __PACKAGE__ ;
+    for my $func_name (
         qw/
         is_nil
         is_false
@@ -21,22 +28,41 @@ class VM::Object {
         /
       )
     {
-        has $_ => (
-            is      => 'rw',
-            isa     => 'Bool',
-            default => 0,
-        );
+        *t = eval { "*" . $class . "::" . $func_name };
+        *t = sub {
+            my ( $self, $val ) = @_;
+            if ( defined $val ) {
+                return $self->{$func_name} = $val;
+            }
+            else {
+                if ( !defined $self->{$func_name} ) {
+                    return $self->{$func_name} = 0;
+                }
+                else {
+                    return $self->{$func_name};
+                }
+            }
+        };
     }
 
-    has 'type' => (
-        is      => 'rw',
-        isa     => 'Int',
-        default => sub { VM::Common::LuaType->LUA_TNONE }
-    );
-
-    method to_string  { }
-    method to_literal { $self->to_string }
-    method to_num     { return 0.0 }
 }
+
+sub type {
+    my ( $self, $val ) = @_;
+    if ( defined $val ) {
+        return $self->{type} = $val;
+    }
+    else {
+        return $self->{type};
+    }
+}
+
+sub to_string { }
+
+sub to_literal {
+    my $self = shift;
+    $self->to_string;
+}
+sub to_num { return 0.0; }
 
 1;

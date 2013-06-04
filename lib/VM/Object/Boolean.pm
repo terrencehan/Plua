@@ -2,27 +2,32 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::Boolean;
 
-class VM::Object::Boolean extends VM::Object {
+use lib '../../';
+use VM::Common::LuaType;
 
-    #--BUILD(value => bool)
-    use lib '../../';
-    use VM::Common::LuaType;
+use parent qw/VM::Object/;
 
-    has value => (
-        is       => 'rw',
-        isa      => 'Bool',
-        required => 1,
-        trigger => sub {
-            my ($self, $new, $old) = @_;
-            $self->is_false( not $new );
-        },
-    );
+#--BUILD(value => bool)
 
+my @required = qw/value/;
 
-    method BUILD ($args) {
-        $self->type( VM::Common::LuaType->LUA_TBOOLEAN );
+sub new {
+    my ($class, @args) = @_;
+    my $self = bless {@args}, $class;
+    $self->type( VM::Common::LuaType->LUA_TBOOLEAN );
+    return $self;
+}
+
+sub value{
+    my ( $self, $val ) = @_;
+    if ( defined $val ) {
+        $self->is_false(!$val);
+        return $self->{value} = $val;
+    }
+    else {
+        return $self->{value};
     }
 }
 

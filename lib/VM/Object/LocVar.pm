@@ -2,17 +2,32 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::LocVar;
 
-class VM::Object::LocVar {    #no base class
-    has 'var_name' => (
-        is  => 'rw',
-        isa => 'Str',
-    );
-    has [ 'start_pc', 'end_pc' ] => (
-        is  => 'rw',
-        isa => 'Int',
-    );
+sub new {
+    my ( $class, @args ) = @_;
+    bless {@args}, $class;
+}
+
+BEGIN {
+    my $class = __PACKAGE__;
+    for my $func_name ( 'var_name', 'start_pc', 'end_pc' ) {
+        *t = eval { "*" . $class . "::" . $func_name };
+        *t = sub {
+            my ( $self, $val ) = @_;
+            if ( defined $val ) {
+                return $self->{$func_name} = $val;
+            }
+            else {
+                if ( !defined $self->{$func_name} ) {
+                    return undef;
+                }
+                else {
+                    return $self->{$func_name};
+                }
+            }
+        };
+    }
 }
 
 1;

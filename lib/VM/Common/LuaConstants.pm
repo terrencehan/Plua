@@ -2,21 +2,20 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Common::LuaConstants;
 
-class VM::Common::LuaConstants {
-    use MooseX::ClassAttribute;
-
+BEGIN {
     my %h;
 
     $h{LUA_NOREF}  = -2;
     $h{LUA_REFNIL} = -1;
 
     for ( keys %h ) {
-        class_has $_ => (
-            is      => 'ro',
-            default => $h{$_},
-        );
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $res = $h{$_};
+        *t = sub {
+            $res;
+        };
     }
 }
 

@@ -2,11 +2,9 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Common::LuaConf;
 
-class VM::Common::LuaConf {
-    use MooseX::ClassAttribute;
-
+BEGIN {
     my %h;
 
     $h{LUAI_BITSINT} = 32;
@@ -17,10 +15,11 @@ class VM::Common::LuaConf {
     $h{MAXTAGLOOP}          = 100;
 
     for ( keys %h ) {
-        class_has $_ => (
-            is      => 'ro',
-            default => $h{$_},
-        );
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $res = $h{$_};
+        *t = sub {
+            $res;
+        };
     }
 }
 

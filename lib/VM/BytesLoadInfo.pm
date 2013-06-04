@@ -1,40 +1,72 @@
 # lib/VM/BytesLoadInfo.pm
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
-use MooseX::Declare;
 
-class VM::BytesLoadInfo extends VM::LoadInfo {
+package VM::BytesLoadInfo;
 
-    #-BUILD (bytes => bytes)
-    has 'bytes' => (    #isa bytes_array
-        is      => 'rw',
-        isa     => 'ArrayRef',
-        default => sub { [] },
-    );
-    has 'pos' => (
-        is      => 'rw',
-        isa     => 'Int',
-        default => 0,
-    );
+#-BUILD (bytes => bytes)
 
-    method read_byte {
-        if ( $self->pos >= @{ $self->bytes } ) {
-            return -1;
+use parent qw/VM::LoadInfo/;
+
+sub new {
+    my ( $class, @args ) = @_;
+    bless {@args}, $class;
+}
+
+sub bytes {    #get/set
+               #'ArrayRef
+    my ( $self, $val ) = @_;
+    if ( defined $val ) {
+        return $self->{bytes} = $val;
+    }
+    else {
+        if ( defined $self->{bytes} ) {
+            return $self->{bytes};
         }
-        else {
-            my $old_pos = $self->pos;
-            $self->pos( $self->pos + 1 );
-            return $self->bytes->[$old_pos];
+        else {    #default
+            return $self->{bytes} = [];
         }
     }
+}
 
-    method peek_byte ($len = 1) {
-        if ( $self->pos >= @{ $self->bytes } ) {
-            return -1;
+sub pos {         #get/set
+                  #'Int
+    my ( $self, $val ) = @_;
+    if ( defined $val ) {
+        return $self->{pos} = $val;
+    }
+    else {
+        if ( defined $self->{pos} ) {
+            return $self->{pos};
         }
-        else {
-            return @{ $self->bytes }[ $self->pos .. $self->pos + --$len ];
+        else {    #default
+            return 0;
         }
+    }
+}
+
+sub read_byte {
+    my ($self) = @_;
+    if ( $self->pos >= @{ $self->bytes } ) {
+        return -1;
+    }
+    else {
+        my $old_pos = $self->pos;
+        $self->pos( $self->pos + 1 );
+        return $self->bytes->[$old_pos];
+    }
+}
+
+sub peek_byte {
+    my ( $self, $len ) = @_;
+    if ( !defined $len ) {
+        $len = 1;
+    }
+    if ( $self->pos >= @{ $self->bytes } ) {
+        return -1;
+    }
+    else {
+        return @{ $self->bytes }[ $self->pos .. $self->pos + --$len ];
     }
 }
 

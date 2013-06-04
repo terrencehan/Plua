@@ -2,10 +2,9 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::OpCode::OpMode;
 
-class VM::OpCode::OpMode {    #enum
-    use MooseX::ClassAttribute;
+BEGIN {
     my @modes = (
         'iABC',
         'iABx',
@@ -16,12 +15,11 @@ class VM::OpCode::OpMode {    #enum
 
     my $count = 0;
     for (@modes) {
-        class_has $_ => (
-            is      => 'ro',
-            isa     => 'Num',
-            default => $count++,
-        );
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $n = $count++;
+        *t = sub {
+            return $n;
+        };
     }
 }
-
 1;

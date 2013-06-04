@@ -2,21 +2,24 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::LightUserData;
+use lib '../../';
+use VM::Common::LuaType;
 
-class VM::Object::LightUserData extends VM::Object {
-    use lib '../../';
-    use VM::Common::LuaType;
+#-BUILD (value => Any)
 
-    #-BUILD (value => Any)
+use parent qw/VM::Object/;
 
-    has 'value' => (
-        is  => 'ro',
-        isa => 'Any',
-    );
-
-    method BUILD {
-        $self->type(VM::Common::LuaType->LUA_TLIGHTUSERDATA);
-    }
+sub new {
+    my ( $class, @args ) = @_;
+    my $self = bless {@args}, $class;
+    $self->type( VM::Common::LuaType->LUA_TLIGHTUSERDATA );
+    return $self;
 }
+
+sub value {    #get
+    my $self = shift;
+    return $self->{value};
+}
+
 1;

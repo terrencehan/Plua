@@ -2,25 +2,23 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Common::LuaEq;
 
-class VM::Common::LuaEq {
-    use MooseX::ClassAttribute;
-
+BEGIN {
     my $count = 0;
     for (
         qw/
-		LUA_OPEQ	
-		LUA_OPLT	
-		LUA_OPLE	
+        LUA_OPEQ
+        LUA_OPLT
+        LUA_OPLE
         /
       )
     {
-        class_has $_ => (
-            is      => 'ro',
-            isa     => 'Int',
-            default => $count++,
-        );
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $n = $count++;
+        *t = sub {
+            return $n;
+        };
     }
 }
 

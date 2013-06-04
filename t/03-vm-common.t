@@ -9,6 +9,11 @@ use lib '../lib';
 
 use Test::More;
 
+use_ok 'VM::Common::ClosureType';
+use aliased 'VM::Common::ClosureType';
+is ClosureType->LUA,           0;
+is ClosureType->PERL,           1;
+
 use_ok 'VM::Common::LuaType';
 use aliased 'VM::Common::LuaType';
 

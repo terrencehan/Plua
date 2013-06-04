@@ -2,17 +2,22 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+use strict;
+use warnings;
 
-class VM::Common::ClosureType { #enum
-    use MooseX::ClassAttribute;
+package VM::Common::ClosureType;
+
+BEGIN {
     my $count = 0;
     for (qw/LUA PERL/) {
-        class_has $_ => (
-            is      => 'ro',
-            isa     => 'Num',
-            default => $count++,
-        );
+        no warnings;
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $n = $count++;
+        *t = sub {
+            return $n;
+        };
+
     }
 }
+
 1;
