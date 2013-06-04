@@ -1129,6 +1129,7 @@ sub d_p_call {
     my (
         $self,
         $func,        #CodeRef
+        $ud,
         $old_top,     #VM::StkId
         $err_func,    #Int
     ) = @_;
