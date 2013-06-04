@@ -2,12 +2,23 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::UpvalDesc;
+use lib '../../';
+use plua;
 
-class VM::Object::UpvalDesc {    # no base class
-    has name     => ( is => 'rw', isa => 'Str|Undef', );
-    has index    => ( is => 'rw', isa => 'Int', );
-    has in_stack => ( is => 'rw', isa => 'Bool', );
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'name',       #Str
+        'index',      #Int
+        'in_stack'    #Bool
+    );
+}
+
+sub new {
+    my ( $class, @args ) = @_;
+    bless {@args}, $class;
 }
 
 1;

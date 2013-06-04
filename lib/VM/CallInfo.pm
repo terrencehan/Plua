@@ -2,81 +2,59 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::CallInfo;
 
-class VM::CallInfo {
+use lib '../';
+use plua;
+use VM::StkId;
+use VM::CallStatus;
+use VM::Pointer;
+use aliased 'VM::Util';
+use VM::Common::ThreadStatus;
 
-    use VM::StkId;
-    use VM::CallStatus;
-    use VM::Pointer;
-    use aliased 'VM::Util';
-    use VM::Common::ThreadStatus;
-
-    has [ 'func', 'top', 'base', 'extra' ] => (
-        is  => 'rw',
-        isa => 'VM::StkId',
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'func', 'top', 'base', 'extra',    #VM::StkId
+        'previous', 'next',                          #VM::CallInfo
+        'num_results', 'context', 'old_err_func',    #Int
+        'call_status',                               #VM::CallStatus
+        'status',                                    #Int
+        'continue_func',                             #CodeRef
+        'saved_pc',                                  #VM::Pointer
+        'old_allow_hook',                            #Bool
     );
+}
 
-    has [ 'previous', 'next' ] => (
-        is  => 'rw',
-        isa => 'VM::CallInfo|Undef',
-    );
+sub new {
+    my ( $class, @args ) = @_;
+    bless {@args}, $class;
+}
 
-    has [ 'num_results', 'context', 'old_err_func' ] => (
-        is  => 'rw',
-        isa => 'Int',
-    );
+sub is_lua {
+    my $self = shift;
+    my $status = defined( $self->call_status ) ? $self->call_status : 0;
+    return ( $status & VM::CallStatus->CIST_LUA ) != 0;
+}
 
-    has 'call_status' => (
-        is => 'rw',
-
-        #isa => 'VM::CallStatus',
-        isa => 'Int',
-    );
-
-    has 'status' => (
-        is => 'rw',
-
-        #isa => 'VM::Common::ThreadStatus',
-        isa => 'Int',
-    );
-
-    has 'continue_func' => (
-        is  => 'rw',
-        isa => 'CodeRef',
-    );
-
-    has 'saved_pc' => (
-        is  => 'rw',
-        isa => 'VM::Pointer',
-    );
-
-    has 'old_allow_hook' => (
-        is  => 'rw',
-        isa => 'Bool',
-    );
-
-    method is_lua {
-        my $status = defined( $self->call_status ) ? $self->call_status : 0;
-        return ( $status & VM::CallStatus->CIST_LUA ) != 0;
+sub current_lua_func {                               #get
+    my $self = shift;
+    if ( $self->is_lua ) {
+        return $self->func->value;
     }
+    return undef;
+}
 
-    method current_lua_func {    #get
-        if ( $self->is_lua ) {
-            return $self->func->value;
-        }
-        return undef;
-    }
+sub current_line {                                   #get
+    my $self = shift;
+    return $self->fun->value->proto->get_func_line( $self->current_pc );
+}
 
-    method current_line {        #get
-        return $self->fun->value->proto->get_func_line( $self->current_pc );
-    }
-
-    method current_pc {          #get
-        Uiil->assert( $self->is_lua );
-        return $self->saved_pc->index - 1;
-    }
-
+sub current_pc {                                     #get
+    my $self = shift;
+    Uiil->assert( $self->is_lua );
+    return $self->saved_pc->index - 1;
 }
 
 1;

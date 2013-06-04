@@ -2,44 +2,38 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::GlobalState;
+use lib '../';
+use plua;
 
-class VM::GlobalState {
-    use lib '../';
+#-BUILD (state => VM::State)
+use VM::Object::Table;
+use VM::Object::Upvalue;
+use VM::State;
+use aliased 'VM::Common::LuaType';
 
-    #-BUILD (state => VM::State)
-    use VM::Object::Table;
-    use VM::Object::Upvalue;
-    use VM::State;
-    use aliased 'VM::Common::LuaType';
+BEGIN {
+    my $class = __PACKAGE__;
+    attr( $class, VM::Object::Table->new, 'registy' );
 
-    has 'registy' => (
-        is      => 'rw',
-        isa     => 'VM::Object::Table',
-        default => sub { new VM::Object::Table; },
+    attr( $class, VM::Object::Upvalue->new, 'upval_head' );
+
+    attr(
+        $class, [],
+        'meta_tables'    #ArrayRef[VM::Object::Table
     );
 
-    has 'upval_head' => (
-        is      => 'rw',
-        isa     => 'VM::Object::Upvalue',
-        default => sub { new VM::Object::Upvalue; },
+    attr(
+        $class, undef,
+        'man_thread'     #VM::State
     );
+}
 
-    has 'meta_tables' => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object::Table]',
-        default => sub { [] },
-    );
-
-    has 'man_thread' => (
-        is  => 'rw',
-        isa => 'VM::State',
-    );
-
-    method BUILD ($args) {
-        $self->man_thread( $args->{state} );
-    }
-
+sub new {
+    my ( $class, %args ) = @_;
+    my $self = bless {}, $class;
+    $self->man_thread( $args{state} );
+    return $self;
 }
 
 1;

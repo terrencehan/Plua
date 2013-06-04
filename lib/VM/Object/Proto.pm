@@ -2,65 +2,47 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::Proto;
 
-class VM::Object::Proto extends VM::Object {
+#-BUILD ()
+use lib '../../';
+use plua;
+use parent qw/VM::Object/;
+use VM::Instruction;
 
-    #-BUILD ()
-    use lib '../../';
-    use VM::Instruction;
-    has code => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Instruction]',
-        default => sub { [] },
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, [],
+        'code',         #ArrayRef[VM::Instruction]
+        'k',            #ArrayRef[VM::Object]
+        'p',            #ArrayRef[VM::Object::Proto]
+        'upvalues',     #ArrayRef[VM::Object::UpvalDesc]
+        'line_info',    #ArrayRef[Int]
+        'loc_vars',     #ArrayRef[VM::Object::LocVar]
     );
-    has k => (    #constants used by the function
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object]',
-        default => sub { [] },
+    attr(
+        $class, undef,
+        'line_defined', 'last_line_defined', 'num_params',    #Int
+        'max_stack_size',                                     #Int
+        'is_vararg',                                          #Bool
+        'source',                                             #Str
     );
-    has p => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object::Proto]',
-        default => sub { [] },
-    );
-    has upvalues => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object::UpvalDesc]',
-        default => sub { [] },
-    );
-    has [ 'line_defined', 'last_line_defined', 'num_params', 'max_stack_size', ] => (
-        is  => 'rw',
-        isa => 'Int',
-    );
-    has is_vararg => (
-        is  => 'rw',
-        isa => 'Bool',
-    );
+}
 
-    has source => (
-        is  => 'rw',
-        isa => 'Str',
-    );
-    has line_info => (
-        is      => 'rw',
-        isa     => 'ArrayRef[Int]',
-        default => sub { [] },
-    );
+sub new {
+    my ( $class, @args ) = @_;
+    my $self = bless {@args}, $class;
+    $self->type( VM::Common::LuaType->LUA_TPROTO );
+    return $self;
+}
 
-    has loc_vars => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object::LocVar]',
-        default => sub { [] },
-    );
-
-    method BUILD {
-        $self->type( VM::Common::LuaType->LUA_TPROTO );
-    }
-
-    method get_func_line( Int $pc) {
-        return $pc < scalar $self->lineinfo ? $self->lineinfo->[$pc] : 0;
-    };
+sub get_func_line {
+    my (
+        $self,
+        $pc,    #Int
+    ) = @_;
+    return $pc < scalar $self->lineinfo ? $self->lineinfo->[$pc] : 0;
 }
 
 1;

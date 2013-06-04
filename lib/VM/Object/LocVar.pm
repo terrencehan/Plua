@@ -4,6 +4,9 @@
 
 package VM::Object::LocVar;
 
+use lib '../../';
+use plua;
+
 sub new {
     my ( $class, @args ) = @_;
     bless {@args}, $class;
@@ -11,23 +14,11 @@ sub new {
 
 BEGIN {
     my $class = __PACKAGE__;
-    for my $func_name ( 'var_name', 'start_pc', 'end_pc' ) {
-        *t = eval { "*" . $class . "::" . $func_name };
-        *t = sub {
-            my ( $self, $val ) = @_;
-            if ( defined $val ) {
-                return $self->{$func_name} = $val;
-            }
-            else {
-                if ( !defined $self->{$func_name} ) {
-                    return undef;
-                }
-                else {
-                    return $self->{$func_name};
-                }
-            }
-        };
-    }
+    attr(
+        $class, undef,
+        'var_name',    #Str
+        'start_pc', 'end_pc'
+    );
 }
 
 1;

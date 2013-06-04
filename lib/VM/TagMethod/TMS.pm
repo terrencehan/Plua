@@ -2,11 +2,9 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::TagMethod::TMS;
 
-class VM::TagMethod::TMS {
-    use MooseX::ClassAttribute;
-
+BEGIN {
     my $count = 0;
     for (
         qw/
@@ -31,12 +29,12 @@ class VM::TagMethod::TMS {
         /    # `TM_N' number of elements in the enum
       )
     {
-        class_has $_ => (
-            is      => 'ro',
-            isa     => 'Int',
-            default => $count++,
-        );
+        *t = eval { "*" . __PACKAGE__ . "::" . $_ };
+        my $n = $count++;
+        *t = sub {
+            return $n;
+        };
+
     }
 }
-
 1;

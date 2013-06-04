@@ -2,22 +2,18 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::Closure;
+use lib '../../';
+use plua;
 
-role VM::Object::Closure {
-    use lib '../../';
-
-    requires qw/get_upvalue set_upvalue/;
-
-    has 'closure_type' => (
-        is  => 'rw',
-        isa => 'Int',
-
-        #isa => 'VM::Common::ClosureType',
+BEGIN {
+    my $class = __PACKAGE__;
+    attr( $class, undef, 
+        'closure_type' #Int
     );
-
-    method get_upvalue ( Num $n, ScalarRef [VM::Object] $val ) { }
-    method set_upvalue ( Num $n, ScalarRef [VM::Object] $val ) { }
 }
+
+sub get_upvalue { }
+sub set_upvalue { }
 
 1;

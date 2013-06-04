@@ -5,12 +5,19 @@
 package VM::Object::String;
 
 #-BUILD (value => Str)
+
+use lib '../../';
 use parent qw/VM::Object/;
 
 my @required = qw/value/;
 
-use lib '../../';
+use plua;
 use VM::Common::LuaType;
+
+BEGIN {
+    my $class = __PACKAGE__;
+    attr( $class, undef, qw/ value / );
+}
 
 sub new {
     my ( $class, @args ) = @_;
@@ -19,17 +26,6 @@ sub new {
     $self->type( VM::Common::LuaType->LUA_TSTRING );
     $self->is_string(1);
     return $self;
-}
-
-sub value {
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        $self->is_false( !$val );
-        return $self->{value} = $val;
-    }
-    else {
-        return $self->{value};
-    }
 }
 
 sub to_string {

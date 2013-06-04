@@ -1,71 +1,96 @@
 # lib/VM/ExecuteEnvironment.pm
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
-use MooseX::Declare;
 
-class VM::ExecuteEnvironment {
+package VM::ExecuteEnvironment;
 
-    use VM::StkId;
-    use VM::Instruction;
-    use VM::State;
-    use aliased 'VM::TagMethod::TMS';
+use lib '../';
+use plua;
 
-    has [ 'k', 'base' ] => (
-        is  => 'rw',
-        isa => 'VM::StkId'
+use VM::StkId;
+use VM::Instruction;
+use VM::State;
+use aliased 'VM::TagMethod::TMS';
+
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'k',    'base',    #VM::StkId
+        'i',               #VM::Instruction
     );
+}
 
-    has 'i' => (
-        is  => 'rw',
-        isa => 'VM::Instruction',
-    );
+sub new {
+    my ( $class, @args ) = @_;
+    bless {@args}, $class;
+}
 
-    method clone {
-        my $new_env = new VM::ExecuteEnvironment;
-        if(defined($self->k)){
-            $new_env->k($self->k->clone);
-        }
-        if(defined($self->base)){
-            $new_env->base($self->base->clone);
-        }
-        if(defined($self->i)){
-            $new_env->i($self->i->clone);
-        }
-        return $new_env;
+sub clone {
+    my ($self) = @_;
+    my $new_env = new VM::ExecuteEnvironment;
+    if ( defined( $self->k ) ) {
+        $new_env->k( $self->k->clone );
     }
-    method RA { return $self->base + $self->i->GETARG_A(); }
-    method RB { return $self->base + $self->i->GETARG_B(); }
+    if ( defined( $self->base ) ) {
+        $new_env->base( $self->base->clone );
+    }
+    if ( defined( $self->i ) ) {
+        $new_env->i( $self->i->clone );
+    }
+    return $new_env;
+}
 
-    method RK (Int $x) {
-        return Instruction->ISK($x)
-          ? $self->k + Instruction->INDEXK($x)
-          : $self->base + $x;
+sub RA {
+    my ($self) = @_;
+    return $self->base + $self->i->GETARG_A();
+}
+
+sub RB {
+    my ($self) = @_;
+    return $self->base + $self->i->GETARG_B();
+}
+
+sub RK {
+    my (
+        $self, $x    #Int
+    ) = @_;
+    return Instruction->ISK($x)
+      ? $self->k + Instruction->INDEXK($x)
+      : $self->base + $x;
+}
+
+sub RKB {
+    my ($self) = @_;
+    return $self->RK( $self->i->GETARG_B() );
+}
+
+sub RKC {
+    my ($self) = @_;
+    return $self->RK( $self->i->GETARG_C );
+}
+
+sub arith_op {    #$tm=>VM::TagMethod::TMS
+
+    my (
+        $self,
+        $lua,     #VM::State
+        $tm,      #Int =>VM::TagMethod::TMS
+        $op,      #CodeRef
+    ) = @_;
+    my $lhs = $self->RKB->value;
+    my $rhs = $self->RKC->value;
+    if (   ( ref($lhs) eq 'VM::Object::Number' )
+        && ( ref($rhs) eq 'VM::Object::Number' ) )
+    {
+        my $ra = $self->RA;
+        my $res = $op->( $lhs->value, $rhs->value );
+        $ra->value = new VM::Object::Number( value => $res );
+    }
+    else {
+        $lua->v_arith( $self->RA, $self->RKB, $self->RKC, $tm );
     }
 
-    method RKB {
-        return $self->RK( $self->i->GETARG_B() );
-    }
-
-    method RKC {
-        return $self->RK( $self->i->GETARG_C );
-    }
-
-    method arith_op (VM::State $lua, Int $tm, CodeRef $op) {  #$tm=>VM::TagMethod::TMS
-
-        my $lhs = $self->RKB->value;
-        my $rhs = $self->RKC->value;
-        if (   ( ref($lhs) eq 'VM::Object::Number' )
-            && ( ref($rhs) eq 'VM::Object::Number' ) )
-        {
-            my $ra = $self->RA;
-            my $res = $op->( $lhs->value, $rhs->value );
-            $ra->value = new VM::Object::Number( value => $res );
-        }
-        else {
-            $lua->v_arith( $self->RA, $self->RKB, $self->RKC, $tm );
-        }
-
-    }
 }
 
 1;

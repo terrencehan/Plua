@@ -5,56 +5,33 @@
 use v5.10;
 
 package VM::Object;
-
+use lib '../';
+use plua;
 use VM::Common::LuaType;
+
+BEGIN {
+    my $class = __PACKAGE__;
+
+    attr(
+        $class,
+        0,
+        qw/
+          is_nil
+          is_false
+          is_function
+          is_clousre
+          is_string
+          is_number
+          is_table
+          is_thread
+          /
+    );
+    attr( $class, undef, qw/ type / );
+}
 
 sub new {
     my $class = shift;
     bless { type => VM::Common::LuaType->LUA_TNONE }, $class;
-}
-
-BEGIN {
-    my $class = __PACKAGE__ ;
-    for my $func_name (
-        qw/
-        is_nil
-        is_false
-        is_function
-        is_clousre
-        is_string
-        is_number
-        is_table
-        is_thread
-        /
-      )
-    {
-        *t = eval { "*" . $class . "::" . $func_name };
-        *t = sub {
-            my ( $self, $val ) = @_;
-            if ( defined $val ) {
-                return $self->{$func_name} = $val;
-            }
-            else {
-                if ( !defined $self->{$func_name} ) {
-                    return $self->{$func_name} = 0;
-                }
-                else {
-                    return $self->{$func_name};
-                }
-            }
-        };
-    }
-
-}
-
-sub type {
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{type} = $val;
-    }
-    else {
-        return $self->{type};
-    }
 }
 
 sub to_string { }

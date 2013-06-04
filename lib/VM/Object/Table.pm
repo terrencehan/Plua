@@ -5,140 +5,57 @@
 package Node;
 
 #-BUILD (key => VM::Object, value => VM::Object)
+use lib '../../';
+use plua;
+
 sub new {
     my ( $class, @args ) = @_;
     bless {@args}, $class;
 }
 
 BEGIN {
-    for my $func_name (
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
         'key',  'value',    #VM::Object
         'prev', 'next',     #VM::Node | Undef
-      )
-    {
-        *t = eval { "*" . __PACKAGE__ . "::" . $func_name };
-        *t = sub {
-            my ( $self, $val ) = @_;
-            if ( defined $val ) {
-                return $self->{$func_name} = $val;
-            }
-            else {
-                if ( !defined $self->{$func_name} ) {
-                    return undef;
-                }
-                else {
-                    return $self->{$func_name};
-                }
-            }
-        };
-
-    }
+    );
 }
 
 package VM::Object::Table;
 
 #-BUILD (array_size => Int, dict_size => Int)
 use lib '../../';
+use plua;
 use VM::Common::LuaType;
 use VM::Object;
 use VM::Object::Number;
 use VM::Object::String;
 use parent qw/VM::Object/;
 
-sub dict_part {    #get/set
-                   #'HashRef[VM::Object] | Undef'
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{dict_part} = $val;
-    }
-    else {
-        if ( !defined $self->{dict_part} ) {
-            return $self->{dict_part} = {};
-        }
-        else {
-            return $self->{dict_part};
-        }
-    }
-}
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, {},
+        'dict_part',    #HashRef[VM::Object]
+    );
 
-sub head {    #get/set
-              #'Node'
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{head} = $val;
-    }
-    else {
-        if ( !defined $self->{head} ) {
-            return undef;
-        }
-        else {
-            return $self->{head};
-        }
-    }
-}
+    attr(
+        $class, undef,
+        'head',          #Node
+        'meta_table',    #VM::Object::Table
+    );
 
-sub meta_table {    #get/set
-                    #'VM::Object::Table'
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{meta_table} = $val;
-    }
-    else {
-        if ( !defined $self->{meta_table} ) {
-            return undef;
-        }
-        else {
-            return $self->{meta_table};
-        }
-    }
-}
+    attr(
+        $class, ~0,
+        'flags',         #Int
+    );
 
-sub flags {    #get/set
-               #'Int
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{flags} = $val;
-    }
-    else {
-        if ( !defined $self->{flags} ) {
-            return ~0;
-        }
-        else {
-            return $self->{flags};
-        }
-    }
-}
-
-sub cached_length {    #get/set
-                       #'Int
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{cached_length} = $val;
-    }
-    else {
-        if ( !defined $self->{cached_length} ) {
-            return 0;
-        }
-        else {
-            return $self->{cached_length};
-        }
-    }
-}
-
-sub cached_length_dirty {    #get/set
-                             #'Bool
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{cached_length_dirty} = $val;
-    }
-    else {
-        if ( !defined $self->{cached_length_dirty} ) {
-            return 0;
-        }
-        else {
-            return $self->{cached_length_dirty};
-        }
-    }
+    attr(
+        $class, 0,
+        'cached_length',          #Int
+        'cached_length_dirty',    #Bool
+    );
 }
 
 #method length {

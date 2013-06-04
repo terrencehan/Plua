@@ -4,45 +4,21 @@
 
 package VM::BytesLoadInfo;
 
+use lib '../';
+use plua;
 #-BUILD (bytes => bytes)
 
 use parent qw/VM::LoadInfo/;
 
+BEGIN {
+    my $class = __PACKAGE__;
+    attr( $class, [], 'bytes' );
+    attr( $class, 0, 'pos');
+}
+
 sub new {
     my ( $class, @args ) = @_;
     bless {@args}, $class;
-}
-
-sub bytes {    #get/set
-               #'ArrayRef
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{bytes} = $val;
-    }
-    else {
-        if ( defined $self->{bytes} ) {
-            return $self->{bytes};
-        }
-        else {    #default
-            return $self->{bytes} = [];
-        }
-    }
-}
-
-sub pos {         #get/set
-                  #'Int
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{pos} = $val;
-    }
-    else {
-        if ( defined $self->{pos} ) {
-            return $self->{pos};
-        }
-        else {    #default
-            return 0;
-        }
-    }
 }
 
 sub read_byte {

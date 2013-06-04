@@ -2,65 +2,79 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::BinaryBytesReader;
 
-class VM::BinaryBytesReader {
+#-BUILD (load_info => VM::LoadInfo)
+use lib '../';
+use plua;
+use aliased 'Helper::BitConverter';
 
-    #-BUILD (load_info => VM::LoadInfo)
-    use aliased 'Helper::BitConverter';
+BEGIN {
+    my $class = __PACKAGE__;
 
-    has 'load_info' => (
-        is       => 'rw',
-        isa      => 'VM::LoadInfo',
-        required => 1,
-    );
+    attr( $class, undef, qw/ load_info / );
+}
 
-    method read_bytes (Int $count) {
-        my @ret;
-        for ( 0 .. $count - 1 ) {
-            my $c = $self->load_info->read_byte();
-            if ( $c == -1 ) {
-                die "thruncated";
-            }
-            push @ret, $c;
-        }
-        return @ret;
-    }
+sub new {
+    my ( $class, @args ) = @_;
+    my $self = bless {@args}, $class;
+    return $self;
+}
 
-    method read_int {
-        return Helper::BitConverter->to_int32( $self->read_bytes(4) );
-    }
-
-    method read_uint {
-        return Helper::BitConverter->to_uint32( $self->read_bytes(4) );
-    }
-
-    method read_size_t {
-        $self->read_uint;    #need more scalable
-    }
-
-    method read_double {
-        return Helper::BitConverter->to_double( $self->read_bytes(8) );
-    }
-
-    method read_byte {
+sub read_bytes {
+    my (
+        $self,
+        $count,    #Int
+    ) = @_;
+    my @ret;
+    for ( 0 .. $count - 1 ) {
         my $c = $self->load_info->read_byte();
         if ( $c == -1 ) {
             die "thruncated";
         }
-        return $c;
+        push @ret, $c;
     }
+    return @ret;
+}
 
-    method read_string {
-        my $n = $self->read_size_t();
-        if ( $n == 0 ) {
-            return undef;
-        }
-        my @bytes = $self->read_bytes($n);
-        my $ret = pack "C*", @bytes;
-        return $ret;
+sub read_int {
+    my $self = shift;
+    return Helper::BitConverter->to_int32( $self->read_bytes(4) );
+}
+
+sub read_uint {
+    my $self = shift;
+    return Helper::BitConverter->to_uint32( $self->read_bytes(4) );
+}
+
+sub read_size_t {
+    my $self = shift;
+    $self->read_uint;    #need more scalable
+}
+
+sub read_double {
+    my $self = shift;
+    return Helper::BitConverter->to_double( $self->read_bytes(8) );
+}
+
+sub read_byte {
+    my $self = shift;
+    my $c    = $self->load_info->read_byte();
+    if ( $c == -1 ) {
+        die "thruncated";
     }
+    return $c;
+}
 
+sub read_string {
+    my $self = shift;
+    my $n    = $self->read_size_t();
+    if ( $n == 0 ) {
+        return undef;
+    }
+    my @bytes = $self->read_bytes($n);
+    my $ret = pack "C*", @bytes;
+    return $ret;
 }
 
 1;

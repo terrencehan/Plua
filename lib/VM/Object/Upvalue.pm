@@ -2,32 +2,38 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::Upvalue;
+use lib '../../';
+use plua;
+use strict;
+use warnings;
+use parent qw/VM::Object/;
+use VM::StkId;
+use VM::Object::Nil;
+use VM::Common::LuaType;
 
-class VM::Object::Upvalue extends VM::Object {
-    use lib '../../';
-    use VM::StkId;
-    use VM::Object::Nil;
-    use VM::Common::LuaType;
+#-BUILD ()
 
-    #-BUILD ()
-
-    has 'v' => (
-        is  => 'rw',
-        isa => 'VM::StkId',
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'v',    #VM::StkId
     );
 
-    has 'value' => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object]',
-        default => sub { [] },
+    attr(
+        $class, [],
+        'value',    #ArrayRef[VM::Object]
     );
-
-    method BUILD {
-        $self->type( VM::Common::LuaType->LUA_TUPVAL );
-        push $self->value, VM::Object::Nil->new();
-        $self->v( new VM::StkId( list => $self->value, index => 0 ) );
-    }
-
 }
+
+sub new {
+    my ( $class, @args ) = @_;
+    my $self = bless {}, $class;
+    $self->type( VM::Common::LuaType->LUA_TUPVAL );
+    push $self->value, VM::Object::Nil->new();
+    $self->v( new VM::StkId( list => $self->value, index => 0 ) );
+    return $self;
+}
+
 1;

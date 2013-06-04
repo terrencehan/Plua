@@ -2,33 +2,34 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::UserData;
 
-class VM::Object::UserData extends VM::Object {
-    use lib '../../';
-    use VM::Common::LuaType;
+use lib '../../';
+use plua;
+use parent qw/VM::Object/;
+use VM::Common::LuaType;
 
-    #-BUILD (value => Any)
+#-BUILD (value => Any)
 
-    has 'value' => (
-        is  => 'ro',
-        isa => 'Any',
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'value',         #Any
+        'meta_table',    #VM::Object::Table
     );
 
-    has 'length' => (
-        is      => 'ro',
-        isa     => 'Int',
-        default => 0,
+    attr(
+        $class, 0,
+        'length',        #Int
     );
+}
 
-    has 'meta_table' => (
-        is      => 'rw',
-        isa     => 'VM::Object::Table',
-    );
-
-    method BUILD {
-        $self->type(VM::Common::LuaType->LUA_TUSERDATA);
-    }
+sub new {
+    my ( $class, @args ) = @_;
+    my $self = bless {@args}, $class;
+    $self->type( VM::Common::LuaType->LUA_TUSERDATA );
+    return $self;
 }
 
 1;

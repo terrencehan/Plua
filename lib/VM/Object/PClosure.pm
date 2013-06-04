@@ -2,52 +2,67 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
-use MooseX::Declare;
+package VM::Object::PClosure;
 
-class VM::Object::PClosure with VM::Object::Closure extends VM::Object {
+use strict;
+use warnings;
+use lib '../../';
+use plua;
+use parent qw/VM::Object VM::Object::Closure/;
 
-    #-BUILD (f => CodeRef)
-    use VM::Common::ClosureType;
-    use VM::Common::LuaType;
-    has 'f' => (
-        is       => 'rw',
-        isa      => 'CodeRef',
-        required => 1,
+#-BUILD (f => CodeRef)
+use VM::Common::ClosureType;
+use VM::Common::LuaType;
+
+BEGIN {
+    my $class = __PACKAGE__;
+    attr( $class, undef, 
+        'f' #CodeRef
     );
-
-    has 'upvals' => (
-        is      => 'rw',
-        isa     => 'ArrayRef[VM::Object]',
-        default => sub { [] },
+    attr( $class, [], 
+        'upvals' #'ArrayRef[VM::Object::Upvalue]',
     );
-
-    method BUILD {
-        $self->closure_type( VM::Common::ClosureType->PERL );
-        $self->is_function(1);
-        $self->is_clousre(1);
-        $self->type( VM::Common::LuaType->LUA_TFUNCTION );
-    }
-
-    method get_upvalue ( Num $n, ScalarRef [VM::Object] $val ) {
-        if ( !( 1 <= $n && $n <= scalar @$self->upvals ) ) {
-            $$val = undef;
-            return undef;
-        }
-        else {
-            $$val = $self->upvals->[ $n - 1 ];
-            return '';
-        }
-    }
-
-    method set_upvalue ( Num $n, ScalarRef [VM::Object] $val ) {
-        if ( !( 1 <= $n && $n <= scalar @$self->upvals ) ) {
-            return undef;
-        }
-        else {
-            $self->upvals->[ $n - 1 ]($val);
-            return '';
-        }
-    }
-
 }
+
+sub new {
+    my ( $class, @args ) = @_;
+    my $self = bless {@args}, $class;
+    $self->closure_type( VM::Common::ClosureType->PERL );
+    $self->is_function(1);
+    $self->is_clousre(1);
+    $self->type( VM::Common::LuaType->LUA_TFUNCTION );
+    return $self;
+}
+
+sub get_upvalue {
+    my (
+        $self,
+        $n,       #Num
+        $val      #ScalarRef [VM::Object]
+    ) = @_;
+    if ( !( 1 <= $n && $n <= scalar @$self->upvals ) ) {
+        $$val = undef;
+        return undef;
+    }
+    else {
+        $$val = $self->upvals->[ $n - 1 ];
+        return '';
+    }
+}
+
+sub set_upvalue {
+    my (
+        $self,
+        $n,     #Num
+        $val    #ScalarRef [VM::Object]
+    ) = @_;
+    if ( !( 1 <= $n && $n <= scalar @$self->upvals ) ) {
+        return undef;
+    }
+    else {
+        $self->upvals->[ $n - 1 ]($val);
+        return '';
+    }
+}
+
 1;

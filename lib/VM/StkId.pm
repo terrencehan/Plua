@@ -7,40 +7,18 @@ package VM::StkId;
 #-BUILD (list => ArrayRef[VM::Object], index => Int | object => LuaObject | stkid => VM::StkId)
 
 use lib '../';
+use plua;
 use VM::Object;
 use VM::Object::Nil;
 
-sub isolate_value {    #get/set
-                       #'VM::Object
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{value} = $val;
-    }
-    else {
-        return $self->{value};
-    }
-}
-
-sub index {            #get/set
-                       #'Int
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{index} = $val;
-    }
-    else {
-        return $self->{index};
-    }
-}
-
-sub list {             #get/set
-                       #'ArrayRef[VM:Object]
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        return $self->{list} = $val;
-    }
-    else {
-        return $self->{list};
-    }
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'isolate_value',    #VM::Object
+        'index',            #Int
+        'list',             #ArrayRef[VM::Object]
+    );
 }
 
 sub BUILDARGS {

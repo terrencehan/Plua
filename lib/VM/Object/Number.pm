@@ -6,10 +6,16 @@ package VM::Object::Number;
 
 #-BUILD (value => Num)
 use lib '../../';
+use plua;
 use VM::Common::LuaType;
 use parent qw/VM::Object/;
 
 my @required = qw/value/;
+
+BEGIN {
+    my $class = __PACKAGE__;
+    attr( $class, undef, qw/ value / );
+}
 
 sub new {
     my ( $class, @args ) = @_;
@@ -17,17 +23,6 @@ sub new {
     $self->is_number(1);
     $self->type( VM::Common::LuaType->LUA_TNUMBER );
     return $self;
-}
-
-sub value {
-    my ( $self, $val ) = @_;
-    if ( defined $val ) {
-        $self->is_false( !$val );
-        return $self->{value} = $val;
-    }
-    else {
-        return $self->{value};
-    }
 }
 
 sub to_string {

@@ -1,70 +1,71 @@
 # lib/VM/Pointer.pm
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
-use MooseX::Declare;
+package VM::Pointer;
+use lib '../';
+use plua;
 
-class VM::Pointer {
+#-BUILD (list => ArrayRef[Any], index => Int | pointer => VM::Pointer)
 
-    #-BUILD (list => ArrayRef[Any], index => Int | pointer => VM::Pointer)
-
-    has 'list' => (
-        is  => 'rw',
-        isa => 'ArrayRef[Any]',
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'list',     #ArrayRef[Any]
+        'index',    #Int
     );
+}
 
-    has 'index' => (
-        is  => 'rw',
-        isa => 'Int',
-    );
-
-    method BUILD ($args) {
-        my @keys = keys $args;
-        if ( 'pointer' ~~ @keys ) {
-            $self->list  = $args->{pointer}->list;
-            $self->index = $args->{pointer}->index;
-        }
+sub new {
+    my ( $class, %args ) = @_;
+    my @keys = keys %args;
+    my $self;
+    if ( 'pointer' ~~ @keys ) {
+        $self = bless {}, $class;
+        $self->list  = $args{pointer}->list;
+        $self->index = $args{pointer}->index;
     }
-
-    method value ($val?) {
-        if ( !defined $val ) {    #get
-            return $self->list->[ $self->index ];
-        }
-        else {                    #set
-            $self->list->[ $self->index ] = $val;
-        }
+    else {
+        $self = bless {%args}, $class;
     }
+    return $self;
+}
 
-    method value_inc ($val?) {
-        if ( !defined $val ) {    #get
-            my $old_index = $self->index;
-            $self->index( $old_index + 1 );
-            return $self->list->[$old_index];
-        }
-        else {                    #set
-            my $old_index = $self->index;
-            $self->index( $old_index + 1 );
-            $self->list->[$old_index] = $val;
-        }
+sub value {
+    my ( $self, $val ) = @_;
+    if ( !defined $val ) {    #get
+        return $self->list->[ $self->index ];
+    }
+    else {                    #set
+        $self->list->[ $self->index ] = $val;
     }
 }
 
-{
-
-    package VM::Pointer;
-
-    use overload '+' => \&add;
-    use overload '-' => \&sub;
-
-    sub add {
-        my ( $one, $two ) = @_;
-        VM::Pointer->new( list => $one->list, index => $one->index + $two );
+sub value_inc {
+    my ( $self, $val ) = @_;
+    if ( !defined $val ) {    #get
+        my $old_index = $self->index;
+        $self->index( $old_index + 1 );
+        return $self->list->[$old_index];
     }
-
-    sub sub {
-        my ( $one, $two ) = @_;
-        VM::Pointer->new( list => $one->list, index => $one->index - $two );
+    else {                    #set
+        my $old_index = $self->index;
+        $self->index( $old_index + 1 );
+        $self->list->[$old_index] = $val;
     }
-    1;
+}
+
+use overload '+' => \&add;
+use overload '-' => \&sub;
+
+sub add {
+    my ( $one, $two ) = @_;
+    VM::Pointer->new( list => $one->list, index => $one->index + $two );
+}
+
+sub sub {
+    my ( $one, $two ) = @_;
+    VM::Pointer->new( list => $one->list, index => $one->index - $two );
 }
 
 1;
