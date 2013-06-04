@@ -7,9 +7,7 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-* Moose
-* MooseX::Declare
-* MooseX::ClassAttribute
+* Class::ISA
 
 
 
