@@ -1,5 +1,7 @@
 package plua;
 
+use Clone qw/clone/;
+
 require Exporter;
 
 our @ISA = qw(Exporter);
@@ -22,7 +24,7 @@ sub attr {
             }
             else {
                 if ( !defined $self->{$func_name} ) {
-                    return $self->{$func_name} = $default;
+                    return $self->{$func_name} = clone $default;
                 }
                 else {
                     return $self->{$func_name};
