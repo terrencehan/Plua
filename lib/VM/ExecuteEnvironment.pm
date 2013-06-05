@@ -55,8 +55,8 @@ sub RK {
     my (
         $self, $x    #Int
     ) = @_;
-    return Instruction->ISK($x)
-      ? $self->k + Instruction->INDEXK($x)
+    return VM::Instruction->ISK($x)
+      ? $self->k + VM::Instruction->INDEXK($x)
       : $self->base + $x;
 }
 

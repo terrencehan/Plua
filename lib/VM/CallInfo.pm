@@ -48,12 +48,12 @@ sub current_lua_func {                               #get
 
 sub current_line {                                   #get
     my $self = shift;
-    return $self->fun->value->proto->get_func_line( $self->current_pc );
+    return $self->func->value->proto->get_func_line( $self->current_pc );
 }
 
 sub current_pc {                                     #get
     my $self = shift;
-    Uiil->assert( $self->is_lua );
+    Util->assert( $self->is_lua );
     return $self->saved_pc->index - 1;
 }
 

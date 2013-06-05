@@ -42,7 +42,7 @@ sub get_func_line {
         $self,
         $pc,    #Int
     ) = @_;
-    return $pc < scalar $self->lineinfo ? $self->lineinfo->[$pc] : 0;
+    return $pc < scalar $self->line_info ? $self->line_info->[$pc] : 0;
 }
 
 1;
