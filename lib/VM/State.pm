@@ -978,60 +978,114 @@ sub to_string {               #LuaAPI
 }
 
 sub to_number_x {    #LuaAPI
+    my (
+        $self,
+        $index,      #Int
+        $is_num      #ScalarRef[Bool]
+    ) = @_;
+    my $addr;        #VM::StkId
+    if ( $self->index2addr( $index, \$addr ) ) {
+        $$is_num = 0;    #false
+        return 0.0;
+    }
+    return $addr->value->to_number($is_num);
+}
+
+sub to_number {          #LuaAPI
+    my (
+        $self,
+        $index           #Int
+    ) = @_;
+    my $is_num;
+    return $self->api->to_number_x( $index, \$is_num );
+}
+
+sub to_integer_x {       #LuaAPI
+    my (
+        $self,
+        $index,          #Int
+        $is_num          #ScalarRef[Bool]
+    ) = @_;
+
+    my $addr;            #VM::StkId
+    if ( $self->index2addr( $index, \$addr ) ) {
+        $$is_num = 0;    #false
+        return 0.0;
+    }
+    return int $addr->value->to_number($is_num);
+}
+
+sub to_integer {         #LuaAPI
+    my (
+        $self,
+        $index           #Int
+    ) = @_;
+    my $is_num;
+    return $self->api->to_integer_x( $index, \$is_num );
+}
+
+sub to_unsigned_x {      #LuaAPI
     my ($self) = @_;
     die "#TODO";
 }
 
-sub to_number {      #LuaAPI
+sub to_unsigned {        #LuaAPI
     my ($self) = @_;
     die "#TODO";
 }
 
-sub to_integer_x {    #LuaAPI
+sub to_boolean {         #LuaAPI
+    my (
+        $self,
+        $index           #Int
+    ) = @_;
+    my $addr;            #VM::StkId
+    if ( $self->index2addr( $index, \$addr ) ) {
+        return 0;
+    }
+    if ( !defined Util->as( $addr->value, "VM::Object::Nil" ) ) {
+        return 0;
+    }
+    my $b = Util->as( $addr->value, 'VM::Object::Boolean' );
+    return !defined($b) || $b->value;
+}
+
+sub to_object {          #LuaAPI
+    my (
+        $self,
+        $index           #Int
+    ) = @_;
+    my $addr;            #VM::StkId
+    if ( $self->index2addr( $index, \$addr ) ) {
+        return undef;
+    }
+    return $addr->value;
+}
+
+sub to_user_data {       #LuaAPI
     my ($self) = @_;
     die "#TODO";
 }
 
-sub to_integer {      #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub to_unsigned_x {    #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub to_unsigned {      #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub to_boolean {       #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub to_object {        #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub to_user_data {     #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub to_thread {        #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
+sub to_thread {          #LuaAPI
+    my (
+        $self,
+        $index           #Int
+    ) = @_;
+    my $addr;            #VM::StkId
+    if ( $self->index2addr( $index, \$addr ) ) {
+        return undef;
+    }
+    return $addr->value->is_thread
+      ? Util->as( $addr->value, "VM::State" )
+      : undef;
 }
 
 sub index2addr {
     my (
         $self,
-        $index,        #Int
-        $addr,         #ScalarRef[VM::StkId]
+        $index,          #Int
+        $addr,           #ScalarRef[VM::StkId]
     ) = @_;
     my $ci = $self->ci;
     if ( $index > 0 ) {
@@ -1696,7 +1750,23 @@ sub f_get_local_name {
         $local_number,    #Int
         $pc,              #Int
     ) = @_;
-    die "#TODO";
+    for (
+        my $i = 0 ;
+        $i < @{ $proto->loc_vars } && $proto->loc_vars->[$i]->start_pc <= $pc ;
+        ++$i
+      )
+    {
+        if ( $pc < $proto->loc_vars->[$i]->end_pc )
+        {                 # is variable still active?
+            --$local_number;
+            if ( $local_number == 0 ) {
+                return $proto->loc_vars->[$i]->var_name;
+            }
+
+        }
+
+    }
+    return undef;
 }
 
 #end of Func part
@@ -1735,7 +1805,14 @@ sub v_execute {
             when ( OpCode->OP_GETUPVAL . '' ) { die "#TODO"; }
             when ( OpCode->OP_GETTABUP . '' ) { die "#TODO"; }
             when ( OpCode->OP_GETTABLE . '' ) { die "#TODO"; }
-            when ( OpCode->OP_SETTABUP . '' ) { die "#TODO"; }
+            when ( OpCode->OP_SETTABUP . '' ) { 
+                my $a = $i->GETARG_A();
+                my $key = $env->RKB;
+                my $val = $env->RKC;
+                $self->v_set_table($cl->upvals->[$a]->v->value, $key->value, $val);
+                $env->base ( $ci->base->clone);
+                break;
+            }
             when ( OpCode->OP_SETUPVAL . '' ) { die "#TODO"; }
             when ( OpCode->OP_SETTABLE . '' ) { die "#TODO"; }
             when ( OpCode->OP_NEWTABLE . '' ) { die "#TODO"; }
@@ -1750,7 +1827,10 @@ sub v_execute {
             when ( OpCode->OP_NOT . '' )      { die "#TODO"; }
             when ( OpCode->OP_LEN . '' )      { die "#TODO"; }
             when ( OpCode->OP_CONCAT . '' )   { die "#TODO"; }
-            when ( OpCode->OP_JMP . '' )      { die "#TODO"; }
+            when ( OpCode->OP_JMP . '' )      { 
+                $self->v_do_jump($ci, $i, 0);
+                break;
+            }
             when ( OpCode->OP_EQ . '' )       { die "#TODO"; }
             when ( OpCode->OP_LT . '' )       { die "#TODO"; }
             when ( OpCode->OP_LE . '' )       { die "#TODO"; }
@@ -1915,8 +1995,16 @@ sub v_concat {
 }
 
 sub v_do_jump {
-    my ($self) = @_;
-    die "#TODO";
+    my ($self, 
+        $ci, #VM::CallInfo
+        $i, #VM::Instruction
+        $e, #Int
+    ) = @_;
+    my $a = $i->GETARG_A;
+    if($a>0){
+        $self->f_close($ci->base + ($a-1));
+    }
+    $ci->saved_pc($ci->saved_pc+($i->GETARG_sBx+$e));
 }
 
 sub v_do_next_jump {
