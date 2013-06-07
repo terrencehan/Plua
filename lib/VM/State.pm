@@ -2,14 +2,15 @@
 # Copyright (c) 2013 terrencehan
 # hanliang1990@gmail.com
 
+package VM::State;
+
 use v5.10;
 
-package VM::State;
+use strict;
+use warnings;
+
 use lib '../';
 use plua;
-use parent qw/VM::Object/;
-
-#-BUILD (g => VM::GlobalState = undef)
 use VM::Object::Table;
 use VM::Object::Upvalue;
 use VM::GlobalState;
@@ -36,6 +37,31 @@ use aliased 'VM::Common::LuaConf';
 use aliased 'VM::Common::LuaLimits';
 use aliased 'VM::Common::ThreadStatus';
 use aliased 'VM::TagMethod::TMS';
+
+use parent qw/VM::Object/;
+
+#-BUILD (g => VM::GlobalState = undef)
+
+BEGIN {
+    my $class = __PACKAGE__;
+    attr(
+        $class, undef,
+        'top',    #VM::StkId
+        'ci', 'base_ci',    #VM::CallInfo
+        'g',                #VM::GlobalState
+
+        'num_none_yieldable', 'num_perl_calls', 'err_func', 'base_hook_count',
+        'hook_count',         'hook_mask',      #Int
+        'allow_hook',             #Bool
+        'hook',                   #CodeRef
+        'open_upval',             #ArrayRef[VM::Object::Upvalue|Undef]
+        'instruction_history',    #ArrayRef[VM::Instruction]
+        'api',                    #VM::LuaAPI
+        'state_stack',            # ArrayRef[VM::Object]
+    );
+
+    attr( $class, ThreadStatus->LUA_OK, 'status' );    #Int
+}
 
 sub new {
     my ( $class, @args ) = @_;
@@ -109,27 +135,6 @@ sub o_str2decimal {
     }
 
     return $pos == length($s);    #TRUE if no trailing characters
-}
-
-BEGIN {
-    my $class = __PACKAGE__;
-    attr(
-        $class, undef,
-        'top',                    #VM::StkId
-        'ci', 'base_ci',          #VM::CallInfo
-        'g',                      #VM::GlobalState
-
-        'num_none_yieldable', 'num_perl_calls', 'err_func', 'base_hook_count',
-        'hook_count',         'hook_mask',      #Int
-        'allow_hook',             #Bool
-        'hook',                   #CodeRef
-        'open_upval',             #ArrayRef[VM::Object::Upvalue|Undef]
-        'instruction_history',    #ArrayRef[VM::Instruction]
-        'api',                    #VM::LuaAPI
-        'state_stack',            # ArrayRef[VM::Object]
-    );
-
-    attr( $class, ThreadStatus->LUA_OK, 'status' );    #Int
 }
 
 sub reset_hook_count {
@@ -1385,12 +1390,13 @@ sub try_func_tm {
 #AuxLib part
 BEGIN {
     my $class = __PACKAGE__;
-    attr( $class, 0,  'free_list' );    #Int
-                                        # size of the first part of the stack
-    attr( $class, 12, 'LEVELS1' );      #Int
+    attr( $class, 0, 'free_list' );    #Int
+
+    # size of the first part of the stack
+    attr( $class, 12, 'LEVELS1' );     #Int
 
     # size of the second part of the stack
-    attr( $class, 10, 'LEVELS2' );      #Int
+    attr( $class, 10, 'LEVELS2' );     #Int
 }
 
 sub l_where {
@@ -1805,12 +1811,13 @@ sub v_execute {
             when ( OpCode->OP_GETUPVAL . '' ) { die "#TODO"; }
             when ( OpCode->OP_GETTABUP . '' ) { die "#TODO"; }
             when ( OpCode->OP_GETTABLE . '' ) { die "#TODO"; }
-            when ( OpCode->OP_SETTABUP . '' ) { 
-                my $a = $i->GETARG_A();
+            when ( OpCode->OP_SETTABUP . '' ) {
+                my $a   = $i->GETARG_A();
                 my $key = $env->RKB;
                 my $val = $env->RKC;
-                $self->v_set_table($cl->upvals->[$a]->v->value, $key->value, $val);
-                $env->base ( $ci->base->clone);
+                $self->v_set_table( $cl->upvals->[$a]->v->value,
+                    $key->value, $val );
+                $env->base( $ci->base->clone );
                 break;
             }
             when ( OpCode->OP_SETUPVAL . '' ) { die "#TODO"; }
@@ -1827,8 +1834,8 @@ sub v_execute {
             when ( OpCode->OP_NOT . '' )      { die "#TODO"; }
             when ( OpCode->OP_LEN . '' )      { die "#TODO"; }
             when ( OpCode->OP_CONCAT . '' )   { die "#TODO"; }
-            when ( OpCode->OP_JMP . '' )      { 
-                $self->v_do_jump($ci, $i, 0);
+            when ( OpCode->OP_JMP . '' ) {
+                $self->v_do_jump( $ci, $i, 0 );
                 break;
             }
             when ( OpCode->OP_EQ . '' )       { die "#TODO"; }
@@ -1995,16 +2002,17 @@ sub v_concat {
 }
 
 sub v_do_jump {
-    my ($self, 
-        $ci, #VM::CallInfo
-        $i, #VM::Instruction
-        $e, #Int
+    my (
+        $self,
+        $ci,    #VM::CallInfo
+        $i,     #VM::Instruction
+        $e,     #Int
     ) = @_;
     my $a = $i->GETARG_A;
-    if($a>0){
-        $self->f_close($ci->base + ($a-1));
+    if ( $a > 0 ) {
+        $self->f_close( $ci->base + ( $a - 1 ) );
     }
-    $ci->saved_pc($ci->saved_pc+($i->GETARG_sBx+$e));
+    $ci->saved_pc( $ci->saved_pc + ( $i->GETARG_sBx + $e ) );
 }
 
 sub v_do_next_jump {

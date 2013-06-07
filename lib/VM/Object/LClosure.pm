@@ -6,21 +6,28 @@ package VM::Object::LClosure;
 
 use strict;
 use warnings;
+
 use lib '../../';
 use plua;
 use VM::Common::ClosureType;
 use VM::Common::LuaType;
-use parent qw/VM::Object VM::Object::Closure/;
+
+use parent qw/
+  VM::Object
+  VM::Object::Closure
+  /;
 
 #-BUILD (proto => VM::Object::Proto)
 
 BEGIN {
     my $class = __PACKAGE__;
-    attr( $class, undef, 
-        'proto' #'VM::Object::Proto
+    attr(
+        $class, undef,
+        'proto'    #VM::Object::Proto
     );
-    attr( $class, [], 
-        'upvals' #'ArrayRef[VM::Object::Upvalue]',
+    attr(
+        $class, [],
+        'upvals'    #ArrayRef[VM::Object::Upvalue]
     );
 }
 
@@ -40,8 +47,8 @@ sub new {
 sub get_upvalue {
     my (
         $self,
-        $n,       #Num
-        $val      #ScalarRef [VM::Object]
+        $n,     #Num
+        $val    #ScalarRef [VM::Object]
     ) = @_;
     if ( !( 1 <= $n && $n <= scalar @{ $self->upvals } ) ) {
         $$val = undef;

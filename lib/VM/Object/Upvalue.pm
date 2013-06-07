@@ -3,14 +3,17 @@
 # hanliang1990@gmail.com
 
 package VM::Object::Upvalue;
-use lib '../../';
-use plua;
+
 use strict;
 use warnings;
-use parent qw/VM::Object/;
+
+use lib '../../';
+use plua;
 use VM::StkId;
 use VM::Object::Nil;
 use VM::Common::LuaType;
+
+use parent qw/VM::Object/;
 
 #-BUILD ()
 
@@ -19,6 +22,7 @@ BEGIN {
     attr(
         $class, undef,
         'v',    #VM::StkId
+                #when open, this points the position on the data stack
     );
 
     attr(

@@ -4,21 +4,32 @@
 
 package VM::Object::Proto;
 
-#-BUILD ()
+use strict;
+use warnings;
+
 use lib '../../';
 use plua;
-use parent qw/VM::Object/;
 use VM::Instruction;
+
+use parent qw/VM::Object/;
+
+#-BUILD ()
 
 BEGIN {
     my $class = __PACKAGE__;
     attr(
         $class, [],
-        'code',         #ArrayRef[VM::Instruction]
-        'k',            #ArrayRef[VM::Object]
-        'p',            #ArrayRef[VM::Object::Proto]
+        'code',    #ArrayRef[VM::Instruction]
+        'k',       #ArrayRef[VM::Object]
+                   #constants used by the function
+
+        'p',       #ArrayRef[VM::Object::Proto]
+                   #functions defined inside the functions
+
         'upvalues',     #ArrayRef[VM::Object::UpvalDesc]
+
         'line_info',    #ArrayRef[Int]
+                        #map from opcodes to source lines (debug information)
         'loc_vars',     #ArrayRef[VM::Object::LocVar]
     );
     attr(
