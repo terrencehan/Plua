@@ -815,23 +815,39 @@ sub push_nil {              #LuaAPI
 }
 
 sub push_boolean {          #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $b,                 #Bool
+    ) = @_;
+    $self->top->value( new VM::Object::Boolean( value => $b ) );
+    $self->api_incr_top();
 }
 
 sub push_number {           #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $n,                 #Num
+    ) = @_;
+    $self->top->value( new VM::Object::Number( value => $n ) );
+    $self->api_incr_top();
 }
 
 sub push_integer {          #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $n,                 #Num
+    ) = @_;
+    $self->top->value( new VM::Object::Number( value => $n ) );
+    $self->api_incr_top();
 }
 
 sub push_unsigned {         #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $n,                 #Num
+    ) = @_;
+    $self->top->value( new VM::Object::Number( value => $n ) );
+    $self->api_incr_top();
 }
 
 sub push_string {           #LuaAPI
@@ -1140,13 +1156,17 @@ sub index2addr {
 
 #DO part
 sub d_throw {    #ThreadStatus
+    my (
+        $self_or_class,
+        $err_code,    #Int
+    ) = @_;
     die new VM::RuntimeException( err_code => $err_code );
 }
 
 sub d_raw_run_protected {
     my (
         $self,
-        $func,    #CodeRef
+        $func,        #CodeRef
         $ud
     ) = @_;
     my $old_num_perl_calls = $self->num_perl_calls;
