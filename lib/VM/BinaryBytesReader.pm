@@ -73,6 +73,9 @@ sub read_string {
         return undef;
     }
     my @bytes = $self->read_bytes($n);
+
+    pop @bytes;
+
     my $ret = pack "C*", @bytes;
     return $ret;
 }

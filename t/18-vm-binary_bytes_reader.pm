@@ -24,11 +24,10 @@ is $reader->read_byte, 0x51;
 
 $reader->read_bytes( 0xc - 0x5 );
 
-is $reader->read_string, "\@num.lua\0";
+is $reader->read_string, "\@num.lua";
 
 $reader->read_bytes( 0x35 - 0x18 );
 
 is $reader->read_double, 5.4;
-
 
 done_testing;
