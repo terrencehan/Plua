@@ -11,6 +11,11 @@ use warnings;
 
 use lib '../';
 use plua;
+use Smart::Comments
+
+  #'###',
+  #'####',
+  '#####',;
 use VM::Object::Table;
 use VM::Object::Upvalue;
 use VM::GlobalState;
@@ -80,6 +85,7 @@ sub new {
 
     if ( !defined( $self->g ) ) {
         $self->g( new VM::GlobalState( state => $self ) );
+        $self->init_registry();
     }
 
     $self->init_stack();
@@ -631,18 +637,20 @@ sub raw_set {                          #LuaAPI
 }
 
 =item get_field
+
 Pushes onto the stack the value t[k],  where t is the value at the 
 given index. As in Lua,  this function may trigger a metamethod for 
 the "index" event
+
 =cut
 
-sub get_field {                        #LuaAPI
+sub get_field {    #LuaAPI
     my (
         $self,
-        $index,                        #Int
-        $key,                          #Str
+        $index,    #Int
+        $key,      #Str
     ) = @_;
-    my $addr;                          #VM::StkId
+    my $addr;      #VM::StkId
     if ( !$self->index2addr( $index, \$addr ) ) {
         Util->invalid_index;
     }
@@ -654,10 +662,12 @@ sub get_field {                        #LuaAPI
 }
 
 =item set_field
+
 Does the equivalent to t[k] = v,  where t is the value at the given 
 index and v is the value at the top of the stack.  This function pops 
 the value from the stack. As in Lua, this function may trigger a 
 metamethod for the "newindex" event
+
 =cut
 
 sub set_field {    #LuaAPI
@@ -901,7 +911,9 @@ sub push_perl_closure {     #LuaAPI
 }
 
 =item push_value
+
 Pushes a copy of the element at the given index onto the stack.
+
 =cut
 
 sub push_value {    #LuaAPI
@@ -947,19 +959,48 @@ sub pop {                     #LuaAPI
 }
 
 sub get_meta_table {          #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub set_meta_table {          #LuaAPI
-    my ($self) = @_;
-    die "#TODO";
-}
-
-sub get_global {              #LuaAPI
     my (
         $self,
-        $name                 #Str
+        $index,               #Int
+    ) = @_;
+    my $addr;
+    if ( !$self->index2addr( $index, \$addr ) ) {
+        Util->invalid_index();
+    }
+
+    my $mt;                   #VM::Object
+    given ( $addr->value->type ) {
+        when ( LuaType->LUA_TTABLE . '' ) {
+            my $tbl = Util->as( $addr->value, "VM::Object::Table" );
+            $mt = $tbl->meta_table;
+        }
+        when ( LuaType->LUA_TUSERDATA . '' ) {
+            my $ud = Util->as( $addr->value, "VM::Object::UserData" );
+            $mt = $ud->meta_table;
+        }
+        default {
+            $mt = $self->g->meta_tables->[ $addr->value->type ];
+        }
+    }
+    if ( !defined($mt) ) {
+        return 0;    #false
+    }
+    else {
+        $self->top->value($mt);
+        $self->api_incr_top();
+        return 1;    #true
+    }
+}
+
+sub set_meta_table {    #LuaAPI
+    my ($self) = @_;
+    die "#TODO";
+}
+
+sub get_global {        #LuaAPI
+    my (
+        $self,
+        $name           #Str
     ) = @_;
     my $gt    = $self->g->registy->get_int( LuaDef->LUA_RIDX_GLOBALS );
     my $s     = new VM::Object::String( value => $name );
@@ -968,10 +1009,10 @@ sub get_global {              #LuaAPI
     $self->v_get_table( $gt, $s, $below );
 }
 
-sub set_global {              #LuaAPI
+sub set_global {        #LuaAPI
     my (
         $self,
-        $name                 #Str
+        $name           #Str
     ) = @_;
     my $gt = $self->g->registy->get_int( LuaDef->LUA_RIDX_GLOBALS );
     my $s = new VM::Object::String( value => $name );
@@ -980,12 +1021,12 @@ sub set_global {              #LuaAPI
     $self->top( $self->top - 2 );
 }
 
-sub to_string {               #LuaAPI
+sub to_string {         #LuaAPI
     my (
         $self,
-        $index                #Int
+        $index          #Int
     ) = @_;
-    my $addr;                 #VM::StkId
+    my $addr;           #VM::StkId
     if ( !$self->index2addr( $index, \$addr ) ) {
         return undef;
     }
@@ -1121,17 +1162,23 @@ sub index2addr {
         }
     }
     elsif ( $index > LuaDef->LUA_REGISTRYINDEX ) {
+
+#if(!  ($index != 0 && -$index <= $self->top->index - ( $ci->func->index + 1 ))){
+#say $index;
+#say $self->top->index;
+#say $ci->func->index;
+#}
         Util->api_check(
             $index != 0
               && -$index <= $self->top->index - ( $ci->func->index + 1 ),
             "invalid index: $index"
         );
         $$addr = $self->top + $index;
-        return 1;        #true
+        return 1;    #true
     }
     elsif ( $index == LuaDef->LUA_REGISTRYINDEX ) {
         $$addr = new VM::StkId( object => $self->g->registy );
-        return 1;        #true
+        return 1;    #true
     }
 
     # upvalues
@@ -1192,12 +1239,10 @@ sub set_error_obj {
         when ( ThreadStatus->LUA_ERRMEM . '' ) {
             $old_top->value(
                 new VM::Object::String( value => "not enough memory" ) );
-            break;
         }
         when ( ThreadStatus->LUA_ERRERR . '' ) {
             $old_top->value(
                 new VM::Object::String( value => "error in error handling" ) );
-            break;
         }
         default { $old_top->value( ( $self->top - 1 )->value ) }
     }
@@ -1430,8 +1475,13 @@ sub l_error {
 }
 
 sub l_check_any {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $narg,    #Int
+    ) = @_;
+    if ( $self->api->type($narg) == LuaType->LUA_TNONE ) {
+        $self->l_arg_error( $narg, "value expected" );
+    }
 }
 
 sub l_check_number {
@@ -1495,18 +1545,47 @@ sub l_arg_error {
 }
 
 sub l_type_name {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $index,    #Int
+    ) = @_;
+    return $self->api->type_name( $self->api->api_type($index) );
 }
 
 sub l_get_meta_field {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $obj,      #Int
+        $name,     #String
+    ) = @_;
+    if ( !$self->api->get_meta_table($obj) ) {    # no metatable?
+        return 0;                                 #false
+    }
+    $self->api->push_string($name);
+    $self->api->raw_get(-2);
+    if ( $self->api->is_nil(-1) ) {
+        $self->api->pop(2);
+        return 0;                                 #false
+    }
+    else {
+        $self->api->remove(-2);
+        return 1;                                 #true
+    }
 }
 
 sub l_call_meta {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $obj,                                     #Int
+        $name,                                    #String
+    ) = @_;
+    $obj = $self->api->abs_index($obj);
+    if ( !$self->l_get_meta_field( $obj, $name ) ) {    # no metafield?
+        return 0;                                       #false
+    }
+    $self->api->push_value($obj);
+    $self->api->call( 1, 1 );
+    return 1;                                           #true
 }
 
 sub push_func_name {
@@ -1618,19 +1697,40 @@ sub l_gsub {
 }
 
 sub l_to_string {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $index,    #Int
+    ) = @_;
+    if ( !$self->l_call_meta( $index, "__tostring" ) ) {    # no metafield?
+        given ( $self->api->api_type($index) ) {
+            when ( [ LuaType->LUA_TNUMBER . '', LuaType->LUA_TSTRING . '' ] ) {
+                $self->api->push_value($index);
+            }
+            when ( LuaType->LUA_TBOOLEAN . '' ) {
+                $self->api->push_string(
+                    $self->to_boolean($index) ? "true" : "false" );
+            }
+            when ( LuaType->LUA_TNIL . '' ) {
+                $self->api->push_string('nil');
+            }
+            default {
+                $self->api->push_string( "{"
+                      . $self->l_type_name($index) . "}: {"
+                      . $self->api->to_object($index) );
+            }
+        }
+    }
 }
 
 sub l_open_libs {
     my ($self) = @_;
-    my @define = (
+    my @libs = (
         NameFuncPair->new(
             name => Lib::Base->LIB_NAME,
             func => sub { Lib::Base->open_lib(@_); }
         ),
     );
-    for my $pair (@define) {
+    for my $pair (@libs) {
         $self->l_require_f( $pair->name, $pair->func, 1 );
         $self->api->pop(1);
     }
@@ -1657,6 +1757,14 @@ sub l_require_f {
         $self->api->set_global($module_name);
     }
 }
+
+=item l_get_sub_table
+
+Ensures that the value t[fname],  where t is the value at index idx,
+is a table,  and pushes that table onto the stack. Returns true if 
+it finds a previous table there and false if it creates a new table.
+
+=cut
 
 sub l_get_sub_table {
     my (
@@ -1816,29 +1924,42 @@ sub v_execute {
 
         given ( $i->GET_OPCODE() ) {
             when ( OpCode->OP_MOVE . '' ) {
+                ###OP_MOVE
                 my $rb = $env->RB;
                 $ra->value( $rb->value );
-                break;
             }
             when ( OpCode->OP_LOADK . '' ) {
+                ###OP_LOADK
                 my $rb = $env->k + $i->GETARG_Bx();    #VM::StkId
                 $ra->value( $rb->value );
-                break;
+                #### ra:$ra->value
+                #### rb:$rb->value
             }
             when ( OpCode->OP_LOADKX . '' )   { die "#TODO"; }
             when ( OpCode->OP_LOADBOOL . '' ) { die "#TODO"; }
             when ( OpCode->OP_LOADNIL . '' )  { die "#TODO"; }
             when ( OpCode->OP_GETUPVAL . '' ) { die "#TODO"; }
-            when ( OpCode->OP_GETTABUP . '' ) { die "#TODO"; }
+            when ( OpCode->OP_GETTABUP . '' ) {
+                ###OP_GETTABUP
+                my $b   = $i->GETARG_B();
+                my $key = $env->RKC;
+                $self->v_get_table( $cl->upvals->[$b]->v->value,
+                    $key->value, $ra );
+                #### [VM] ==== OP_GETTABUP key: $key
+                #### [VM] ==== OP_GETTABUP val: $ra
+                $env->base( $ci->base->clone );
+            }
             when ( OpCode->OP_GETTABLE . '' ) { die "#TODO"; }
             when ( OpCode->OP_SETTABUP . '' ) {
+                ###OP_SETTABUP
                 my $a   = $i->GETARG_A();
                 my $key = $env->RKB;
                 my $val = $env->RKC;
+                #### key:$key
+                #### val:$val
                 $self->v_set_table( $cl->upvals->[$a]->v->value,
                     $key->value, $val );
                 $env->base( $ci->base->clone );
-                break;
             }
             when ( OpCode->OP_SETUPVAL . '' ) { die "#TODO"; }
             when ( OpCode->OP_SETTABLE . '' ) { die "#TODO"; }
@@ -1855,17 +1976,50 @@ sub v_execute {
             when ( OpCode->OP_LEN . '' )      { die "#TODO"; }
             when ( OpCode->OP_CONCAT . '' )   { die "#TODO"; }
             when ( OpCode->OP_JMP . '' ) {
+                ###OP_JMP
                 $self->v_do_jump( $ci, $i, 0 );
-                break;
             }
-            when ( OpCode->OP_EQ . '' )       { die "#TODO"; }
-            when ( OpCode->OP_LT . '' )       { die "#TODO"; }
-            when ( OpCode->OP_LE . '' )       { die "#TODO"; }
-            when ( OpCode->OP_TEST . '' )     { die "#TODO"; }
-            when ( OpCode->OP_TESTSET . '' )  { die "#TODO"; }
-            when ( OpCode->OP_CALL . '' )     { die "#TODO"; }
+            when ( OpCode->OP_EQ . '' ) { die "#TODO"; }
+            when ( OpCode->OP_LT . '' ) {
+                ###OP_LT
+                my $expect_cmp_result = $i->GETARG_A != 0;
+                if ( $self->v_less_than( $env->RKB, $env->RKC ) !=
+                    $expect_cmp_result )
+                {
+                    $ci->saved_pc->index( $self->saved_pc->index + 1 );
+                }
+                else {
+                    $self->v_do_next_jump($ci);
+                }
+                $env->base( $ci->base->clone );
+            }
+            when ( OpCode->OP_LE . '' )      { die "#TODO"; }
+            when ( OpCode->OP_TEST . '' )    { die "#TODO"; }
+            when ( OpCode->OP_TESTSET . '' ) { die "#TODO"; }
+            when ( OpCode->OP_CALL . '' ) {
+                ###OP_CALL
+                my $b        = $i->GETARG_B();     #Int
+                my $nresults = $i->GETARG_C - 1;
+                if ( $b != 0 ) {
+                    $self->top( $ra + $b );
+                }
+
+                if ( $self->d_pre_call( $ra, $nresults ) ) {    #perl function?
+                    if ( $nresults >= 0 ) {
+                        $self->top( $ci->top->clone );
+                    }
+                    $env->base( $ci->base->clone );
+                }
+                else {                                          #lua function
+                    $ci = $self->ci;
+                    $ci->call_status(
+                        $ci->call_status | CallStatus->CIST_REENTRY );
+                    goto 'newframe';
+                }
+            }
             when ( OpCode->OP_TAILCALL . '' ) { die "#TODO"; }
             when ( OpCode->OP_RETURN . '' ) {
+                ###OP_RETURN
                 my $b = $i->GETARG_B();
                 if ( $b != 0 ) {
                     $self->top( $ra + $b - 1 );
@@ -2036,8 +2190,12 @@ sub v_do_jump {
 }
 
 sub v_do_next_jump {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $ci,    #VM::CallInfo
+    ) = @_;
+    my $i = $ci->saved_pc->value;
+    $self->v_do_jump( $ci, $i, 1 );
 }
 
 sub v_to_number {
@@ -2136,13 +2294,53 @@ sub v_arith {        #$op=>TMS
 }
 
 sub call_order_tm {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $p1,       #VM::StkId
+        $p2,       #VM::StkId
+        $tm,       #Int
+        $error,    #ScalarRef[Bool]
+    ) = @_;
+    $p1 = $p1->clone;
+    $p2 = $p2->clone;
+    if ( !$self->call_bin_tm( $p1, $p2, $self->top, $tm ) ) {
+        $$error = 1;    #no method
+        return 0;       #false
+    }
+
+    $$error = 0;        #false
+    return !$self->top->value->is_false;
 }
 
 sub v_less_than {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $lhs,           #VM::StkId
+        $rhs,           #VM::StkId
+    ) = @_;
+
+    #compare number
+    my $lhsn = Util->as( $lhs->value, 'VM::Object::Number' );
+    my $rhsn = Util->as( $rhs->value, 'VM::Object::Number' );
+    if ( defined($lhsn) && defined($rhsn) ) {
+        return $lhsn->value < $rhsn->value;
+    }
+
+    #compare string
+    my $lhss = Util->as( $lhs->value, 'VM::Object::String' );
+    my $rhss = Util->as( $rhs->value, 'VM::Object::String' );
+
+    if ( defined($lhss) && defined($rhss) ) {
+        return $lhss->value lt $rhss->value;
+    }
+
+    my $error;    #bool
+    my $res = $self->call_order_tm( $lhs, $rhs, TMS->TM_LT, \$error );
+    if ($error) {
+        $self->g_order_error( $lhs, $rhs );
+        return 0;    #false
+    }
+    return $res;
 }
 
 sub v_less_equal {
@@ -2234,15 +2432,12 @@ sub t_get_tm_by_obj {        #$tm=>TMS
     given ( $o->type ) {
         when ( LuaType->LUA_TTABLE . '' ) {
             $mt = $o->meta_table;
-            break;
         }
         when ( LuaType->LUA_TUSERDATA . '' ) {
             $mt = $o->meta_table;
-            break;
         }
         default {
             $mt = $self->g->meta_tables->[ $o->type ];
-            break;
         }
     }
     return defined($mt)

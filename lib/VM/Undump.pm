@@ -132,24 +132,20 @@ sub load_constants {
         given ($t) {
             when ( LuaType->LUA_TNIL . '' ) {
                 push $proto->k, new VM::Object::Nil;
-                break;
             }
 
             when ( LuaType->LUA_TBOOLEAN . '' ) {
                 push $proto->k,
                   new VM::Object::Boolean( value => $self->load_boolean );
-                break;
             }
 
             when ( LuaType->LUA_TNUMBER . '' ) {
                 push $proto->k,
                   new VM::Object::Number( value => $self->load_number );
-                break;
             }
             when ( LuaType->LUA_TSTRING . '' ) {
                 push $proto->k,
                   new VM::Object::String( value => $self->load_string );
-                break;
             }
             default {
                 die "LoadConstants unknown type: $t ";
