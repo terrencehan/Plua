@@ -1949,7 +1949,14 @@ sub v_execute {
                 #### [VM] ==== OP_GETTABUP val: $ra
                 $env->base( $ci->base->clone );
             }
-            when ( OpCode->OP_GETTABLE . '' ) { die "#TODO"; }
+            when ( OpCode->OP_GETTABLE . '' ) {
+                my $tbl = $env->RB;
+                my $key = $env->RKC;
+                my $val = $ra;
+                $self->v_get_table( $tbl->value, $key->value, $val );
+                #### [VM] ==== OP_GETTABLE key: $key->value
+                #### [VM] ==== OP_GETTABLE val: $ra->value
+            }
             when ( OpCode->OP_SETTABUP . '' ) {
                 ###OP_SETTABUP
                 my $a   = $i->GETARG_A();
@@ -1962,19 +1969,44 @@ sub v_execute {
                 $env->base( $ci->base->clone );
             }
             when ( OpCode->OP_SETUPVAL . '' ) { die "#TODO"; }
-            when ( OpCode->OP_SETTABLE . '' ) { die "#TODO"; }
-            when ( OpCode->OP_NEWTABLE . '' ) { die "#TODO"; }
-            when ( OpCode->OP_SELF . '' )     { die "#TODO"; }
-            when ( OpCode->OP_ADD . '' )      { die "#TODO"; }
-            when ( OpCode->OP_SUB . '' )      { die "#TODO"; }
-            when ( OpCode->OP_MUL . '' )      { die "#TODO"; }
-            when ( OpCode->OP_DIV . '' )      { die "#TODO"; }
-            when ( OpCode->OP_MOD . '' )      { die "#TODO"; }
-            when ( OpCode->OP_POW . '' )      { die "#TODO"; }
-            when ( OpCode->OP_UNM . '' )      { die "#TODO"; }
-            when ( OpCode->OP_NOT . '' )      { die "#TODO"; }
-            when ( OpCode->OP_LEN . '' )      { die "#TODO"; }
-            when ( OpCode->OP_CONCAT . '' )   { die "#TODO"; }
+            when ( OpCode->OP_SETTABLE . '' ) {
+                my $key = $env->RKB;
+                my $val = $env->RKC;
+                $self->v_set_table( $ra->value, $key->value, $val );
+            }
+            when ( OpCode->OP_NEWTABLE . '' ) {
+                $ra->value( new VM::Object::Table );
+            }
+            when ( OpCode->OP_SELF . '' ) { die "#TODO"; }
+            when ( OpCode->OP_ADD . '' ) {
+                $env->arith_op( $self, TMS->TM_ADD, sub { $_[0] + $_[1] } );
+                $env->base( $ci->base->clone );
+            }
+            when ( OpCode->OP_SUB . '' ) {
+                $env->arith_op( $self, TMS->TM_SUB, sub { $_[0] - $_[1] } );
+                $env->base( $ci->base->clone );
+
+            }
+            when ( OpCode->OP_MUL . '' ) {
+                $env->arith_op( $self, TMS->TM_MUL, sub { $_[0] * $_[1] } );
+                $env->base( $ci->base->clone );
+            }
+            when ( OpCode->OP_DIV . '' ) {
+                $env->arith_op( $self, TMS->TM_DIV, sub { $_[0] / $_[1] } );
+                $env->base( $ci->base->clone );
+            }
+            when ( OpCode->OP_MOD . '' ) {
+                $env->arith_op( $self, TMS->TM_MOD, sub { $_[0] % $_[1] } );
+                $env->base( $ci->base->clone );
+            }
+            when ( OpCode->OP_POW . '' ) {
+                $env->arith_op( $self, TMS->TM_POW, sub { $_[0]**$_[1] } );
+                $env->base( $ci->base->clone );
+            }
+            when ( OpCode->OP_UNM . '' )    { die "#TODO"; }
+            when ( OpCode->OP_NOT . '' )    { die "#TODO"; }
+            when ( OpCode->OP_LEN . '' )    { die "#TODO"; }
+            when ( OpCode->OP_CONCAT . '' ) { die "#TODO"; }
             when ( OpCode->OP_JMP . '' ) {
                 ###OP_JMP
                 $self->v_do_jump( $ci, $i, 0 );
@@ -2044,7 +2076,38 @@ sub v_execute {
             when ( OpCode->OP_FORPREP . '' )  { die "#TODO"; }
             when ( OpCode->OP_TFORCALL . '' ) { die "#TODO"; }
             when ( OpCode->OP_TFORLOOP . '' ) { die "#TODO"; }
-            when ( OpCode->OP_SETLIST . '' )  { die "#TODO"; }
+            when ( OpCode->OP_SETLIST . '' ) {
+
+                # sets the values for a range of array elements in a table(RA)
+                # RA -> table
+                # RB -> number of elements to set
+                # C  -> encodes the block number of the table to be initialized
+                # the values used to initialize the table are located in
+                #   R(A+1), R(A+2) ...
+                my $n = $i->GETARG_B();    #Int
+                my $c = $i->GETARG_C();    #Int
+                if ( $n == 0 ) {
+                    $n = ( $self->top->index - $ra->index ) - 1;
+                }
+                if ( $c == 0 ) {
+                    Util->assert( $ci->saved_pc->value->GET_OPCODE() ==
+                          OpCode->OP_EXTRAARG );
+                    $c = $ci->saved_pc->value_inc->GETARG_Ax();
+                }
+
+                my $tbl = Util->as( $ra->value, "VM::Object::Table" );
+                Util->assert( defined($tbl) );
+
+                my $last = ( ( $c - 1 ) * LuaDef->LFIELDS_PER_FLUSH ) + $n; #Int
+
+                for ( ; $n > 0 ; --$n ) {
+                    my $val = $ra + $n;
+                    $tbl->set_int( $last--, $val->value );
+                }
+                $self->top( $ci->top->clone )
+                  ;    # correct top (in case of previous open call)
+
+            }
             when ( OpCode->OP_CLOSURE . '' )  { die "#TODO"; }
             when ( OpCode->OP_VARARG . '' )   { die "#TODO"; }
             when ( OpCode->OP_EXTRAARG . '' ) { die "#TODO"; }

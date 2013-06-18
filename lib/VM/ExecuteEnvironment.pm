@@ -85,7 +85,7 @@ sub arith_op {    #$tm=>VM::TagMethod::TMS
     {
         my $ra = $self->RA;
         my $res = $op->( $lhs->value, $rhs->value );
-        $ra->value = new VM::Object::Number( value => $res );
+        $ra->value( new VM::Object::Number( value => $res ) );
     }
     else {
         $lua->v_arith( $self->RA, $self->RKB, $self->RKC, $tm );
