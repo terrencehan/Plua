@@ -4,6 +4,9 @@
 
 package  Lib::Base;
 
+use strict;
+use warnings;
+
 use lib '../';
 use aliased 'Common::NameFuncPair';
 use aliased 'VM::Common::LuaDef';
@@ -148,6 +151,36 @@ sub open_lib {
 
 sub b_assert {
     die '#TODO';
+}
+
+sub b_print {
+    my ( $class, $lua ) = @_;
+    my $sb = '';
+    my $n  = $lua->get_top();
+    $lua->get_global('tostring');
+    for ( my $i = 1 ; $i <= $n ; ++$i ) {
+        $lua->push_value(-1);
+        $lua->push_value($i);
+        $lua->call( 1, 1 );
+        my $s = $lua->to_string(-1);
+        if ( !defined($s) ) {
+            $lua->l_error("'tostring' must return a string to 'print'");
+        }
+        if ( $i > 1 ) {
+            $sb .= "\t";
+        }
+        $sb .= $s;
+        $lua->pop(1);
+    }
+    print $sb;
+    return 0;
+}
+
+sub b_to_string {
+    my ( $class, $lua ) = @_;
+    $lua->l_check_any(1);
+    $lua->l_to_string(1);
+    return 1;
 }
 
 1;
