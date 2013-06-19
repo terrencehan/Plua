@@ -88,6 +88,8 @@ sub new {
         $self->init_registry();
     }
 
+    $self->open_upval([]);
+
     $self->init_stack();
     return $self;
 }
@@ -1163,11 +1165,6 @@ sub index2addr {
     }
     elsif ( $index > LuaDef->LUA_REGISTRYINDEX ) {
 
-#if(!  ($index != 0 && -$index <= $self->top->index - ( $ci->func->index + 1 ))){
-#say $index;
-#say $self->top->index;
-#say $ci->func->index;
-#}
         Util->api_check(
             $index != 0
               && -$index <= $self->top->index - ( $ci->func->index + 1 ),
@@ -2011,14 +2008,29 @@ sub v_execute {
                 ###OP_JMP
                 $self->v_do_jump( $ci, $i, 0 );
             }
-            when ( OpCode->OP_EQ . '' ) { die "#TODO"; }
+            when ( OpCode->OP_EQ . '' ) {
+                my $lhs = $env->RKB;
+                my $rhs = $env->RKC;
+
+                my $expect_eq = $i->GETARG_A() != 0;
+
+                if ( ( $lhs->value == $rhs->value ) != $expect_eq ) {
+                    $ci->saved_pc->index( $ci->saved_pc->index + 1 )
+                      ;    #skip next jump instruction
+                }
+                else {
+                    $self->v_do_next_jump($ci);
+                }
+                $env->base( $ci->base->clone );
+
+            }
             when ( OpCode->OP_LT . '' ) {
                 ###OP_LT
                 my $expect_cmp_result = $i->GETARG_A != 0;
                 if ( $self->v_less_than( $env->RKB, $env->RKC ) !=
                     $expect_cmp_result )
                 {
-                    $ci->saved_pc->index( $self->saved_pc->index + 1 );
+                    $ci->saved_pc->index( $ci->saved_pc->index + 1 );
                 }
                 else {
                     $self->v_do_next_jump($ci);
@@ -2108,7 +2120,10 @@ sub v_execute {
                   ;    # correct top (in case of previous open call)
 
             }
-            when ( OpCode->OP_CLOSURE . '' )  { die "#TODO"; }
+            when ( OpCode->OP_CLOSURE . '' )  { 
+                my $p = $cl->proto->p->[$i->GETARG_Bx]; #VM::Object::Proto
+                $self->v_push_closure($p, $cl->upvals, $env->base, $ra);
+            }
             when ( OpCode->OP_VARARG . '' )   { die "#TODO"; }
             when ( OpCode->OP_EXTRAARG . '' ) { die "#TODO"; }
             default                           { die "#TODO"; }
@@ -2224,8 +2239,28 @@ sub v_set_table {
 }
 
 sub v_push_closure {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self, 
+        $p, #VM::Object::Proto
+        $encup, #ArrayRef[VM::Object::Upvalue]
+        $stack_base, #StkId
+        $ra, #StkId
+    ) = @_;
+
+    $stack_base = $stack_base->clone;
+    $ra = $ra->clone;
+
+    my $ncl = new VM::Object::LClosure(proto=>$p);
+    $ra->value($ncl);
+    for(my $i = 0; $i<@{$p->upvalues};++$i){
+        if($p->upvalues->[$i]->in_stack){ # upvalue refrs to local variable
+            $ncl->upvals->[$i] = $self->f_find_upval($stack_base + $p->upvalues->[$i]->index);
+        
+        }
+        else{
+            $ncl->upvals->[$i] = $encup->[$p->upvalues->[$i]->index]
+        }
+    }
 }
 
 sub v_obj_len {

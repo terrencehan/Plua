@@ -50,17 +50,27 @@ is $state->err_func,           0;
 is $state->base_hook_count,    0;
 isa_ok $state->g,              'VM::GlobalState';
 
-my $mess_stuff = 0;
-if ($mess_stuff) {
+my %lua_file = (
+    't_files/5.2/num.bin'         => undef,
+    't_files/5.2/num2.bin'        => undef,
+    't_files/5.2/if.bin'          => 'yes1yes2no3no4yes5',
+    't_files/5.2/table.bin'       => '[LuaNumber(7)][LuaNumber(1)]',
+    't_files/5.2/hello_world.bin' => 'hello world',
+    't_files/5.2/hello_fun.bin'   => 'hello',
+);
 
-    #$state->l_open_libs();
-    my $file_path = "t_files/5.2/num.bin";
-    my $status    = $state->l_do_file($file_path);
+close STDOUT;
+for my $file_path ( keys %lua_file ) {
+    my $output = '';
+    open STDOUT, ">", \$output;
+    my $state1 = new VM::State;
+    $state1->l_open_libs();
+    my $status = $state1->l_do_file($file_path);
+    is $status, ThreadStatus->LUA_OK, $file_path;
 
-    #use Data::Dumper qw/Dumper/;
-    #print Dumper $status;
-
-    is $status, ThreadStatus->LUA_OK;
+    if ( $lua_file{$file_path} ) {
+        is $output, $lua_file{$file_path}, 'output';
+    }
 }
 
 done_testing;
