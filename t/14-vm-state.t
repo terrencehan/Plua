@@ -57,6 +57,7 @@ my %lua_file = (
     't_files/5.2/table.bin'       => '[LuaNumber(7)][LuaNumber(1)]',
     't_files/5.2/hello_world.bin' => 'hello world',
     't_files/5.2/hello_fun.bin'   => 'hello',
+    't_files/5.2/100_num_sum.bin' => '[LuaNumber(5050)]',
 );
 
 close STDOUT;

@@ -88,7 +88,7 @@ sub new {
         $self->init_registry();
     }
 
-    $self->open_upval([]);
+    $self->open_upval( [] );
 
     $self->init_stack();
     return $self;
@@ -1171,11 +1171,11 @@ sub index2addr {
             "invalid index: $index"
         );
         $$addr = $self->top + $index;
-        return 1;    #true
+        return 1;        #true
     }
     elsif ( $index == LuaDef->LUA_REGISTRYINDEX ) {
         $$addr = new VM::StkId( object => $self->g->registy );
-        return 1;    #true
+        return 1;        #true
     }
 
     # upvalues
@@ -2084,8 +2084,53 @@ sub v_execute {
                     }
                 }
             }
-            when ( OpCode->OP_FORLOOP . '' )  { die "#TODO"; }
-            when ( OpCode->OP_FORPREP . '' )  { die "#TODO"; }
+            when ( OpCode->OP_FORLOOP . '' ) {
+                my $ra1 = $ra + 1;
+                my $ra2 = $ra + 2;
+                my $ra3 = $ra + 3;
+
+                my $ran  = Util->as( $ra->value,  "VM::Object::Number" );
+                my $ra1n = Util->as( $ra1->value, "VM::Object::Number" );
+                my $ra2n = Util->as( $ra2->value, "VM::Object::Number" );
+
+                my $step = $ra2n->value;
+
+                my $idx = $ran->value + $step;    #increment index
+
+                my $limit = $ra1n->value;
+
+                if ( ( 0 < $step ) ? $idx <= $limit : $limit <= $idx ) {
+                    $ci->saved_pc->index(
+                        $ci->saved_pc->index + $i->GETARG_sBx );
+                    $ra->value( new VM::Object::Number( value => $idx ) );
+                    $ra3->value( new VM::Object::Number( value => $idx ) );
+                }
+
+            }
+            when ( OpCode->OP_FORPREP . '' ) {
+                my $ra1 = $ra + 1;
+                my $ra2 = $ra + 2;
+
+                my $init  = $self->v_to_number( $ra->value );
+                my $limit = $self->v_to_number( $ra1->value );
+                my $step  = $self->v_to_number( $ra2->value );
+
+                if ( !defined($init) ) {
+                    $self->g_run_error("'for' initial value must be a number");
+                }
+
+                if ( !defined($limit) ) {
+                    $self->g_run_error("'for' limit must be a number");
+                }
+
+                if ( !defined($step) ) {
+                    $self->g_run_error("'for' step must be a number");
+                }
+
+                $ra->value(
+                    new VM::Object::Number( $init->value - $step->value ) );
+                $ci->saved_pc->index( $ci->saved_pc->index + $i->GETARG_sBx );
+            }
             when ( OpCode->OP_TFORCALL . '' ) { die "#TODO"; }
             when ( OpCode->OP_TFORLOOP . '' ) { die "#TODO"; }
             when ( OpCode->OP_SETLIST . '' ) {
@@ -2120,9 +2165,9 @@ sub v_execute {
                   ;    # correct top (in case of previous open call)
 
             }
-            when ( OpCode->OP_CLOSURE . '' )  { 
-                my $p = $cl->proto->p->[$i->GETARG_Bx]; #VM::Object::Proto
-                $self->v_push_closure($p, $cl->upvals, $env->base, $ra);
+            when ( OpCode->OP_CLOSURE . '' ) {
+                my $p = $cl->proto->p->[ $i->GETARG_Bx ];    #VM::Object::Proto
+                $self->v_push_closure( $p, $cl->upvals, $env->base, $ra );
             }
             when ( OpCode->OP_VARARG . '' )   { die "#TODO"; }
             when ( OpCode->OP_EXTRAARG . '' ) { die "#TODO"; }
@@ -2240,25 +2285,26 @@ sub v_set_table {
 
 sub v_push_closure {
     my (
-        $self, 
-        $p, #VM::Object::Proto
-        $encup, #ArrayRef[VM::Object::Upvalue]
-        $stack_base, #StkId
-        $ra, #StkId
+        $self,
+        $p,             #VM::Object::Proto
+        $encup,         #ArrayRef[VM::Object::Upvalue]
+        $stack_base,    #StkId
+        $ra,            #StkId
     ) = @_;
 
     $stack_base = $stack_base->clone;
-    $ra = $ra->clone;
+    $ra         = $ra->clone;
 
-    my $ncl = new VM::Object::LClosure(proto=>$p);
+    my $ncl = new VM::Object::LClosure( proto => $p );
     $ra->value($ncl);
-    for(my $i = 0; $i<@{$p->upvalues};++$i){
-        if($p->upvalues->[$i]->in_stack){ # upvalue refrs to local variable
-            $ncl->upvals->[$i] = $self->f_find_upval($stack_base + $p->upvalues->[$i]->index);
-        
+    for ( my $i = 0 ; $i < @{ $p->upvalues } ; ++$i ) {
+        if ( $p->upvalues->[$i]->in_stack ) {  # upvalue refrs to local variable
+            $ncl->upvals->[$i] =
+              $self->f_find_upval( $stack_base + $p->upvalues->[$i]->index );
+
         }
-        else{
-            $ncl->upvals->[$i] = $encup->[$p->upvalues->[$i]->index]
+        else {
+            $ncl->upvals->[$i] = $encup->[ $p->upvalues->[$i]->index ];
         }
     }
 }
@@ -2297,8 +2343,24 @@ sub v_do_next_jump {
 }
 
 sub v_to_number {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $obj,    #VM::Object
+    ) = @_;
+
+    my $n = Util->as( $obj, 'VM::Object::Number' );
+    if ( defined($n) ) {
+        return $n;
+    }
+
+    my $s = Util->as( $obj, 'VM::Object::String' );
+    if ( defined($s) ) {
+        my $val;
+        if ( $self->o_str2decimal( $s->value, \$val ) ) {
+            return new VM::Object::Number( value => $val );
+        }
+    }
+    return undef;
 }
 
 sub tms2op {    #$op=>TMS
