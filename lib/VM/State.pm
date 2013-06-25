@@ -24,6 +24,7 @@ use VM::LoadInfo;
 use VM::Undump;
 use VM::File;
 use VM::CallS;
+use VM::Debug;
 use VM::ExecuteEnvironment;
 use VM::LoadParameter;
 use VM::Object::Nil;
@@ -31,6 +32,7 @@ use VM::Object::Proto;
 use VM::Object::LClosure;
 use VM::Object::PClosure;
 use Lib::Base;
+use Lib::Math;
 use aliased 'Common::NameFuncPair';
 use aliased 'VM::Util';
 use aliased 'VM::OpCode';
@@ -1266,6 +1268,7 @@ sub d_p_call {
         $self->f_close($old_top);
         $self->set_error_obj( $status, $old_top );
         $self->ci($old_ci);
+
         $self->allow_hook($old_allow_hook);
         $self->num_none_yieldable($old_num_non_yieldable);
     }
@@ -1461,9 +1464,37 @@ BEGIN {
     attr( $class, 10, 'LEVELS2' );     #Int
 }
 
+=item l_where
+
+Pushes onto the stack a string identifying the current position 
+of the control at level $level in the call stack. Typically this 
+string has the following format:
+
+chunkname:currentline:
+
+Level 0 is the running function,  level 1 is the function 
+that called the running function,  etc.
+
+This function is used to build a prefix for error messages.
+
+=cut
+
 sub l_where {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $level,    #Int
+    ) = @_;
+    my $ar = new VM::Debug;
+    if ( $self->api->get_stack( $level, $ar ) ) {    #check function at level
+        $self->get_info( "sl", $ar );                #get info about it
+        if ( $ar->current_line > 0 ) {               # is there info?
+            $self->push_string(
+                $ar->short_src . ":" . $ar->current_line . ": " );
+            return;
+        }
+    }
+
+    $self->api->push_string("");    # else, no information available...
 }
 
 sub l_error {
@@ -1471,19 +1502,35 @@ sub l_error {
     die "#TODO";
 }
 
+=itme l_check_any
+
+Checks whether the function has an argument of any type (including nil) 
+at position $narg.
+
+=cut
+
 sub l_check_any {
     my (
         $self,
         $narg,    #Int
     ) = @_;
-    if ( $self->api->type($narg) == LuaType->LUA_TNONE ) {
+
+    if ( $self->api->api_type($narg) == LuaType->LUA_TNONE ) {
         $self->l_arg_error( $narg, "value expected" );
     }
 }
 
 sub l_check_number {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $narg,    #Int
+    ) = @_;
+    my $is_num;
+    my $d = $self->api->to_number_x( $narg, \$is_num );
+    unless ($is_num) {
+        $self->tag_error( $narg, LuaType->LUA_TNUMBER );
+    }
+    return $d;
 }
 
 sub l_check_integer {
@@ -1717,6 +1764,7 @@ sub l_to_string {
             }
         }
     }
+    return $self->api->to_string(-1);
 }
 
 sub l_open_libs {
@@ -1726,6 +1774,11 @@ sub l_open_libs {
             name => Lib::Base->LIB_NAME,
             func => sub { Lib::Base->open_lib(@_); }
         ),
+
+        NameFuncPair->new(
+            name => Lib::Math->LIB_NAME,
+            func => sub { Lib::Math->open_lib(@_); }
+        ),
     );
     for my $pair (@libs) {
         $self->l_require_f( $pair->name, $pair->func, 1 );
@@ -1733,6 +1786,18 @@ sub l_open_libs {
     }
 
 }
+
+=item l_require_f
+
+Calls function openf with string modname as an argument and sets 
+the call result in package.loaded[modname],  as if that function 
+has been called through require.
+
+If glb is true,  also stores the result into global modname.
+
+Leaves a copy of that result on the stack.
+
+=cut
 
 sub l_require_f {
     my (
@@ -1784,16 +1849,24 @@ sub l_get_sub_table {
 }
 
 sub l_new_lib_table {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $define,    #ArrayRef[Common::NameFuncPair]
+    ) = @_;
+    $self->api->create_table( 0, scalar @{$define} );
 }
 
 sub l_new_lib {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $define,    #ArrayRef[Common::NameFuncPair]
+    ) = @_;
+    $self->l_new_lib_table($define);
+    $self->l_set_funcs( $define, 0 );
 }
 
 =item l_set_funcs
+
 Registers all functions in the array l (see luaL_Reg) into the table on 
 the top of the stack (below optional upvalues, see next).
 
@@ -1843,15 +1916,40 @@ sub l_unref {
 
 #Func part
 sub f_find_upval {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $level    #VM::StkId
+    ) = @_;
+    $level = $level->clone;
 
-    #my $node = $self->open_upval->[0];
-    #my $prev = Undef;
+    my $node = $self->open_upval->[0];
+    my $prev = undef;
 
-    #while(defined($node)){
-    #my $upval
-    #}
+    while ( defined($node) ) {
+        my $upval = $node;    #TODO
+                              #my $upval = $node->value; #TODO
+        if ( $upval->v->index < $level->index ) {
+            break;
+        }
+        my $next = $node->next;
+        if ( $upval->v->value == $level->value ) {
+            return $upval;
+        }
+        $prev = $node;
+        $node = $next;
+    }
+
+    # not found: create a new one
+    my $ret = new VM::Object::Upvalue;
+    $ret->v($level);
+
+    if ( !defined($prev) ) {
+        unshift $self->open_upval, $ret;
+    }
+    else {
+        die "TODO";
+    }
+    return $ret;
 }
 
 sub f_close {
@@ -1862,7 +1960,8 @@ sub f_close {
     $level = $level->clone;
     my $node = $self->open_upval->[0];
     while ( defined($node) ) {
-        my $upval = $node->value;
+        my $upval = $node;    #TODO
+                              #my $upval = $node->value; #TODO
         if ( $upval->v->index < $level->index ) {
             last;
         }
@@ -1870,7 +1969,7 @@ sub f_close {
         my $node = $self->open_upval->[0];
 
         $upval->value->[0] = $upval->v->value;
-        $upval->v( new VM::StkId( $upval->value, 0 ) );
+        $upval->v( new VM::StkId( list => $upval->value, index => 0 ) );
     }
 }
 
@@ -1935,7 +2034,12 @@ sub v_execute {
             when ( OpCode->OP_LOADKX . '' )   { die "#TODO"; }
             when ( OpCode->OP_LOADBOOL . '' ) { die "#TODO"; }
             when ( OpCode->OP_LOADNIL . '' )  { die "#TODO"; }
-            when ( OpCode->OP_GETUPVAL . '' ) { die "#TODO"; }
+            when ( OpCode->OP_GETUPVAL . '' ) {
+                ###OP_GETUPVAL
+                my $b = $i->GETARG_B();
+                $ra->value( $cl->upvals->[$b]->v->value );
+                die $cl->upvals->[$b]->v->value;
+            }
             when ( OpCode->OP_GETTABUP . '' ) {
                 ###OP_GETTABUP
                 my $b   = $i->GETARG_B();
@@ -1965,7 +2069,12 @@ sub v_execute {
                     $key->value, $val );
                 $env->base( $ci->base->clone );
             }
-            when ( OpCode->OP_SETUPVAL . '' ) { die "#TODO"; }
+            when ( OpCode->OP_SETUPVAL . '' ) {
+                ###OP_SETUPVAL
+                my $b  = $i->GETARG_B();      #Int
+                my $uv = $cl->upvals->[$b];
+                $uv->v->value( $ra->value );
+            }
             when ( OpCode->OP_SETTABLE . '' ) {
                 my $key = $env->RKB;
                 my $val = $env->RKC;
@@ -2000,10 +2109,23 @@ sub v_execute {
                 $env->arith_op( $self, TMS->TM_POW, sub { $_[0]**$_[1] } );
                 $env->base( $ci->base->clone );
             }
-            when ( OpCode->OP_UNM . '' )    { die "#TODO"; }
-            when ( OpCode->OP_NOT . '' )    { die "#TODO"; }
-            when ( OpCode->OP_LEN . '' )    { die "#TODO"; }
-            when ( OpCode->OP_CONCAT . '' ) { die "#TODO"; }
+            when ( OpCode->OP_UNM . '' ) { die "#TODO"; }
+            when ( OpCode->OP_NOT . '' ) { die "#TODO"; }
+            when ( OpCode->OP_LEN . '' ) { die "#TODO"; }
+            when ( OpCode->OP_CONCAT . '' ) {
+                my $b = $i->GETARG_B();
+                my $c = $i->GETARG_C();
+                $self->top( $env->base + ( $c + 1 ) );
+                $self->v_concat( $c - $b + 1 );
+                $env->base( $ci->base->clone );
+
+                $ra = $env->RA;
+
+                my $rb = $env->RB->clone;    #VM::StkId
+                $ra->value( $rb->value );
+
+                $self->top( $ci->top->clone );
+            }
             when ( OpCode->OP_JMP . '' ) {
                 ###OP_JMP
                 $self->v_do_jump( $ci, $i, 0 );
@@ -2037,7 +2159,19 @@ sub v_execute {
                 }
                 $env->base( $ci->base->clone );
             }
-            when ( OpCode->OP_LE . '' )      { die "#TODO"; }
+            when ( OpCode->OP_LE . '' ) {
+                my $expect_cmp_result = $i->GETARG_A != 0;
+                if ( $self->v_less_equal( $env->RKB, $env->RKC ) !=
+                    $expect_cmp_result )
+                {
+                    $ci->saved_pc->index( $ci->saved_pc->index + 1 );
+
+                }
+                else {
+                    $self->v_do_jump($ci);
+                }
+                $env->base( $ci->base->clone );
+            }
             when ( OpCode->OP_TEST . '' )    { die "#TODO"; }
             when ( OpCode->OP_TESTSET . '' ) { die "#TODO"; }
             when ( OpCode->OP_CALL . '' ) {
@@ -2128,7 +2262,7 @@ sub v_execute {
                 }
 
                 $ra->value(
-                    new VM::Object::Number( $init->value - $step->value ) );
+                    new VM::Object::Number( value => $init->value - $step->value ) );
                 $ci->saved_pc->index( $ci->saved_pc->index + $i->GETARG_sBx );
             }
             when ( OpCode->OP_TFORCALL . '' ) { die "#TODO"; }
@@ -2315,8 +2449,65 @@ sub v_obj_len {
 }
 
 sub v_concat {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $total,    #Int
+    ) = @_;
+
+    Util->assert( $total >= 2 );
+
+    do {
+        my $top = $self->top->clone;
+        my $n   = 2;
+        my $lhs = $top - 2;
+        my $rhs = $top - 1;
+
+        my $lhss = Util->as( $lhs->value, "VM::Object::String" );
+        my $lhsn = Util->as( $lhs->value, "VM::Object::Number" );
+        my $rhss = Util->as( $rhs->value, "VM::Object::String" );
+        my $rhsn = Util->as( $rhs->value, "VM::Object::Number" );
+
+        if (   !defined($lhss)
+            && !defined($lhsn)
+            && ( defined($rhss) || defined($rhsn) ) )
+        {
+            if ( !$self->call_bin_tm( $lhs, $rhs, $lhs, TMS->TM_CONCAT ) ) {
+                $self->g_concate_error( $lhs, $rhs );
+            }
+        }
+        elsif ( defined($rhss) && $rhss->value =~ /^\s*$/ ) {
+            if ( !defined($lhss) && defined($lhsn) ) {
+                $lhs->value( VM::Object::String( value => $lhsn->to_literal ) );
+            }
+        }
+        elsif ( defined($lhss) && $lhss->value =~ /^\s*$/ ) {
+            $lhs->value( $rhs->value );
+        }
+        else {
+            my $sb = '';
+            $n = 0;
+            for ( ; $n < $total ; ++$n ) {
+                my $cur = $top - ( $n + 1 );
+                my $curs = Util->as( $cur->value, "VM::Object::String" );
+                my $curn = Util->as( $cur->value, "VM::Object::Number" );
+
+                if ( defined $curs ) {
+                    $sb = $curs->value . $sb;
+                }
+                elsif ( defined $curn ) {
+                    $sb = $curn->to_literal . $sb;
+                }
+                else {
+                    break;
+                }
+
+            }
+            my $dest = $top - $n;
+            $dest->value( new VM::Object::String( value => $sb ) );
+        }
+        $total -= $n - 1;
+        $self->top( $self->top - ( $n - 1 ) );
+    } while ( $total > 1 );
 }
 
 sub v_do_jump {
@@ -2504,8 +2695,42 @@ sub v_less_than {
 }
 
 sub v_less_equal {
-    my ($self) = @_;
-    die "#TODO";
+    my (
+        $self,
+        $lhs,        #VM::StkId
+        $rhs,        #VM::StkId
+    ) = @_;
+
+    #compare number
+    my $lhsn = Util->as( $lhs->value, 'VM::Object::Number' );
+    my $rhsn = Util->as( $rhs->value, 'VM::Object::Number' );
+    if ( defined($lhsn) && defined($rhsn) ) {
+        return $lhsn->value <= $rhsn->value;
+    }
+
+    #compare string
+    my $lhss = Util->as( $lhs->value, 'VM::Object::String' );
+    my $rhss = Util->as( $rhs->value, 'VM::Object::String' );
+
+    if ( defined($lhss) && defined($rhss) ) {
+        return $lhss->value lt $rhss->value;
+    }
+
+    # first try `le'
+    my $error;    #bool
+    my $res = $self->call_order_tm( $lhs, $rhs, TMS->TM_LE, \$error );
+    if ( !$error ) {
+        return $res;
+    }
+
+    # else try `lt'
+    $res = $self->call_order_tm( $lhs, $rhs, TMS->TM_LT, \$error );
+    if ( !$error ) {
+        return $res;
+    }
+
+    $self->g_order_error( $lhs, $rhs );
+    return 0;    #false
 }
 
 sub v_finish_op {
@@ -2715,14 +2940,16 @@ sub get_obj_name {
 
 sub is_in_stack {
     my ($self) = @_;
-    die "#TODO";
+
+    #die "#TODO";
+    return 0;    #false
 }
 
 sub g_simple_type_error {
     my (
         $self,
-        $o,    #VM::Object
-        $op    #Str
+        $o,      #VM::Object
+        $op      #Str
     ) = @_;
     my $t = $self->obj_type_name($o);
     $self->g_run_error("attempt to {$op} a {$t} value");
@@ -2731,8 +2958,8 @@ sub g_simple_type_error {
 sub g_type_error {
     my (
         $self,
-        $o,    #VM::StkId
-        $op    #Str
+        $o,      #VM::StkId
+        $op      #Str
     ) = @_;
     $o = $o->clone;
     my $ci = $self->ci;
