@@ -29,6 +29,8 @@ BEGIN {
     );
 }
 
+our $print_bytecode = 0;
+
 sub new {
     my ( $class, @args ) = @_;
     bless {@args}, $class;
@@ -45,7 +47,7 @@ sub load_binary {
     my $ret = eval {
         my $reader = new VM::BinaryBytesReader( load_info => $load_info );
         my $undump = new VM::Undump( reader => $reader );
-        $undump->load_header();
+        $undump->load_header();    #TODO
         return $undump->load_function();
     };
     if ($@) {
@@ -107,19 +109,44 @@ sub load_function {
         max_stack_size    => $self->load_byte,
     );
 
+    if ($print_bytecode) {
+        say "func:";
+        print "\n";
+        say "line_defined: " . $proto->line_defined;
+        say "last_line_defined " . $proto->last_line_defined;
+        say "num_params " . $proto->num_params;
+        say "is_vararg " . $proto->is_vararg;
+        say "max_stack_size " . $proto->max_stack_size;
+    }
+
     $self->load_code($proto);
     $self->load_constants($proto);
     $self->load_upvalues($proto);
     $self->load_debug($proto);
+
+    if($print_bytecode){
+        print "\n";
+        say "end func";
+    }
     return $proto;
 }
 
 sub load_code {
     my ( $self, $proto ) = @_;
     my $n = $self->load_int;
+    if($print_bytecode){
+        say "code size: ".$n;
+    }
     $proto->code( [] );
     for ( 1 .. $n ) {
-        push $proto->code, $self->load_instruction;
+        my $code = $self->load_instruction;
+        push $proto->code, $code;
+        if($print_bytecode){
+            say $code->value;
+        }
+    }
+    if($print_bytecode){
+        say "end code"
     }
 }
 
