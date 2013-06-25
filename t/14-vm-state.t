@@ -53,11 +53,17 @@ isa_ok $state->g,              'VM::GlobalState';
 my %lua_file = (
     't_files/5.2/num.bin'         => undef,
     't_files/5.2/num2.bin'        => undef,
-    't_files/5.2/if.bin'          => 'yes1yes2no3no4yes5',
-    't_files/5.2/table.bin'       => '[LuaNumber(7)][LuaNumber(1)]',
-    't_files/5.2/hello_world.bin' => 'hello world',
-    't_files/5.2/hello_fun.bin'   => 'hello',
-    't_files/5.2/100_num_sum.bin' => '[LuaNumber(5050)]',
+    't_files/5.2/if.bin'          => "yes1\nyes2\nno3\nno4\nyes5\n",
+    't_files/5.2/table.bin'       => "[LuaNumber(7)]\n[LuaNumber(1)]\n",
+    't_files/5.2/hello_world.bin' => "hello world\n",
+    't_files/5.2/hello_fun.bin'   => "hello\n",
+    't_files/5.2/100_num_sum.bin' => "[LuaNumber(5050)]\n",
+    't_files/5.2/type.bin'        => "number\nstring\ntable\n",
+    't_files/5.2/while.bin'       => "o\no\no\no\no\n",
+
+    #'t_files/5.2/upvalue.bin'     => "value",
+    't_files/5.2/str_concat.bin' => "abcd\n",
+    't_files/5.2/fun_arg.bin'    => "[LuaNumber(3)]\n",
 );
 
 close STDOUT;
